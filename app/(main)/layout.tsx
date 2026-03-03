@@ -39,7 +39,7 @@ export default function MainLayout({
   }, [onScroll]);
 
   return (
-    <div className="flex min-h-screen bg-zinc-50">
+    <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <div
@@ -52,7 +52,7 @@ export default function MainLayout({
           ref={scrollRef}
           className="min-w-0 flex-1 overflow-auto"
         >
-          <main className="bg-zinc-100 p-6">{children}</main>
+          <main className="bg-zinc-100 dark:bg-zinc-900 p-6">{children}</main>
         </div>
       </div>
     </div>

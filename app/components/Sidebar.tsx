@@ -12,7 +12,7 @@ export function SidebarLogo() {
   return (
     <Link
       href="/dashboard"
-      className="flex h-[130px] shrink-0 items-start border-b border-zinc-200 px-3 pt-[30px] hover:opacity-90"
+      className="flex h-[130px] shrink-0 items-start border-b border-zinc-200 dark:border-zinc-700 px-3 pt-[30px] hover:opacity-90"
       aria-label="Start"
     >
       <img
@@ -78,8 +78,6 @@ const NAV = [
   { href: "/einstellungen/email-vorlagen", label: "E-Mail Vorlagen", icon: icons.mail },
 ] as const;
 
-type ProfileRole = "agency" | "customer" | null;
-
 function initials(email: string | undefined): string {
   if (!email) return "?";
   const part = email.split("@")[0];
@@ -87,17 +85,10 @@ function initials(email: string | undefined): string {
   return part ? part.slice(0, 1).toUpperCase() : "?";
 }
 
-function roleLabel(role: ProfileRole): string {
-  if (role === "agency") return "Agentur";
-  if (role === "customer") return "Kunde";
-  return "";
-}
-
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [profileRole, setProfileRole] = useState<ProfileRole>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -108,29 +99,6 @@ export function Sidebar() {
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (!user?.id) {
-      setProfileRole(null);
-      return;
-    }
-    let cancelled = false;
-    const supabase = createClient();
-    supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-      .then(
-        ({ data }) => {
-          if (!cancelled) setProfileRole((data?.role as ProfileRole) ?? null);
-        },
-        () => {
-          if (!cancelled) setProfileRole(null);
-        }
-      );
-    return () => { cancelled = true; };
-  }, [user?.id]);
-
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -139,7 +107,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="sticky top-0 flex h-screen w-64 flex-col border-r border-zinc-200 bg-white">
+    <aside className="sticky top-0 flex h-screen w-64 flex-col border-r border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
       <SidebarLogo />
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-3 pt-4">
         {NAV.map((item) => {
@@ -153,11 +121,11 @@ export function Sidebar() {
               href={href}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                 active
-                  ? "bg-violet-100 text-violet-900"
-                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                  ? "bg-violet-100 dark:bg-violet-900/40 text-violet-900 dark:text-violet-200"
+                  : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
               }`}
             >
-              <span className={active ? "text-violet-600" : "text-zinc-500"}>{icon}</span>
+              <span className={active ? "text-violet-600 dark:text-violet-400" : "text-zinc-500 dark:text-zinc-400"}>{icon}</span>
               <span className="flex-1">{label}</span>
               {badge != null && badge > 0 && (
                 <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-semibold text-white">
@@ -168,25 +136,24 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="mt-auto shrink-0 border-t border-zinc-200 bg-white p-3">
+      <div className="mt-auto shrink-0 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3">
         <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-sm font-semibold text-violet-900">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/50 text-sm font-semibold text-violet-900 dark:text-violet-200">
             {user ? initials(user.email ?? "") : "—"}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-zinc-900">
+            <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
               {user?.user_metadata?.full_name ?? user?.email ?? "Gast"}
             </p>
-            <p className="truncate text-xs text-zinc-500">
-              {user?.email}
-              {profileRole ? ` · ${roleLabel(profileRole)}` : ""}
-            </p>
+            {user?.email && (
+              <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{user.email}</p>
+            )}
           </div>
         </div>
         <button
           type="button"
           onClick={handleSignOut}
-          className="mt-2 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          className="mt-2 w-full rounded-lg border border-zinc-200 dark:border-zinc-600 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
         >
           Abmelden
         </button>

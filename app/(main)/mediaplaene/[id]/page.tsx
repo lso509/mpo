@@ -474,7 +474,7 @@ export default function MediaplanDetailPage() {
           onClick={() => !adding && setAddProductOpen(false)}
         >
           <div
-            className="max-h-[80vh] w-full max-w-2xl rounded-lg border border-zinc-200 bg-white p-5 shadow-xl"
+            className="max-h-[80vh] w-full max-w-2xl rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-zinc-950">

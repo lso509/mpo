@@ -17,11 +17,11 @@ const bellIcon = (
 );
 
 const navButtonClass =
-  "flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900";
+  "flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100";
 
 export function Header() {
   return (
-    <header className="flex shrink-0 items-center justify-end gap-0.5 py-2 pr-2">
+    <header className="flex shrink-0 items-center justify-end gap-0.5 border-b border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 py-2 pr-2">
       <button
         type="button"
         onClick={nochNichtImplementiert}

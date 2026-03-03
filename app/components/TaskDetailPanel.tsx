@@ -59,7 +59,7 @@ export function TaskDetailPanel({
         onClick={onClose}
       />
       <aside
-        className="fixed right-0 top-0 z-50 flex h-full w-full max-w-lg flex-col border-l border-zinc-200 bg-white shadow-xl"
+        className="fixed right-0 top-0 z-50 flex h-full w-full max-w-lg flex-col border-l border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl"
         aria-labelledby="task-detail-title"
       >
         <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-4">

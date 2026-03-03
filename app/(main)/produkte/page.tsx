@@ -66,6 +66,38 @@ export type TaskVorlage = {
   description: string | null;
 };
 
+export const RICHTUNG_OPTIONS = ["vor", "nach", "am gleichen Tag"] as const;
+export const REFERENZ_OPTIONS = ["Startdatum", "Enddatum", "Creative Deadline"] as const;
+export type Richtung = (typeof RICHTUNG_OPTIONS)[number];
+export type Referenz = (typeof REFERENZ_OPTIONS)[number];
+/** Anzeige im Satz: "am gleichen Tag" → "am gleichen Tag wie" */
+export const RICHTUNG_LABEL: Record<Richtung, string> = { vor: "vor", nach: "nach", "am gleichen Tag": "am gleichen Tag wie" };
+
+export type ProduktTaskConfig = {
+  task_vorlage_id: string;
+  tage: number;
+  richtung: Richtung;
+  referenz: Referenz;
+};
+
+/** Standardwerte pro Task-Titel (bei Auswahl im Produkt-Modal) */
+const TASK_AUTOMATION_DEFAULTS: Record<string, { tage: number; richtung: Richtung; referenz: Referenz }> = {
+  "Rechnung erstellen": { tage: 1, richtung: "nach", referenz: "Enddatum" },
+  "Creative Briefing erstellen": { tage: 14, richtung: "vor", referenz: "Startdatum" },
+  "Creative Deadline": { tage: 0, richtung: "am gleichen Tag", referenz: "Creative Deadline" },
+  "Kundenfreigabe einholen": { tage: 5, richtung: "vor", referenz: "Startdatum" },
+  "Kampagnen-Ende prüfen": { tage: 0, richtung: "am gleichen Tag", referenz: "Enddatum" },
+  "Kampagnen-Start prüfen": { tage: 0, richtung: "am gleichen Tag", referenz: "Startdatum" },
+  "Materialien an Publisher senden": { tage: 7, richtung: "vor", referenz: "Startdatum" },
+  "Media-Buchung vornehmen": { tage: 30, richtung: "vor", referenz: "Startdatum" },
+  "Final Report erstellen": { tage: 1, richtung: "nach", referenz: "Enddatum" },
+  "Zwischenbericht erstellen": { tage: 21, richtung: "vor", referenz: "Enddatum" },
+};
+
+function getDefaultTaskConfig(title: string): { tage: number; richtung: Richtung; referenz: Referenz } {
+  return TASK_AUTOMATION_DEFAULTS[title] ?? { tage: 0, richtung: "vor", referenz: "Enddatum" };
+}
+
 function mapRow(row: Record<string, unknown>): Product {
   const category = row.category ?? row.kategorie ?? "";
   const name = row.produktvariante_titel ?? row.name ?? "";
@@ -425,7 +457,7 @@ export default function ProduktePage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [taskVorlagen, setTaskVorlagen] = useState<TaskVorlage[]>([]);
-  const [selectedTaskVorlageIds, setSelectedTaskVorlageIds] = useState<string[]>([]);
+  const [selectedTasks, setSelectedTasks] = useState<ProduktTaskConfig[]>([]);
   const [aenderungshistorie, setAenderungshistorie] = useState<{ id: string; created_at: string; changed_by: string | null; change_description: string }[]>([]);
   const [sortByCategory, setSortByCategory] = useState<"alphabetisch" | "neueste">("alphabetisch");
   const [fuzzyMatchThreshold, setFuzzyMatchThreshold] = useState(DEFAULT_FUZZY_THRESHOLD);
@@ -434,8 +466,8 @@ export default function ProduktePage() {
     onConfirmCreate: () => void;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  /** Beim Öffnen des Modals geladene Task-Vorlagen-IDs (zum Erkennen von Änderungen beim Speichern) */
-  const initialTaskVorlageIdsRef = useRef<string[]>([]);
+  /** Beim Öffnen des Modals geladene Task-Konfiguration (zum Erkennen von Änderungen beim Speichern) */
+  const initialSelectedTasksRef = useRef<ProduktTaskConfig[]>([]);
 
   const toggleFilter = (
     setter: React.Dispatch<React.SetStateAction<string[]>>,
@@ -476,17 +508,27 @@ export default function ProduktePage() {
 
   useEffect(() => {
     if (productModal == null || productModal === "new") {
-      setSelectedTaskVorlageIds([]);
+      setSelectedTasks([]);
       setAenderungshistorie([]);
-      initialTaskVorlageIdsRef.current = [];
+      initialSelectedTasksRef.current = [];
       return;
     }
     const supabase = createClient();
-    supabase.from("produkt_task_vorlagen").select("task_vorlage_id").eq("produkt_id", productModal).then(({ data }) => {
-      const ids = (data ?? []).map((r) => r.task_vorlage_id as string);
-      setSelectedTaskVorlageIds(ids);
-      initialTaskVorlageIdsRef.current = ids;
-    });
+    supabase
+      .from("produkt_task_vorlagen")
+      .select("task_vorlage_id, tage, richtung, referenz")
+      .eq("produkt_id", productModal)
+      .then(({ data }) => {
+        const rows = data ?? [];
+        const configs: ProduktTaskConfig[] = rows.map((r) => ({
+          task_vorlage_id: r.task_vorlage_id as string,
+          tage: Number(r.tage ?? 0),
+          richtung: (r.richtung === "nach" || r.richtung === "am gleichen Tag" ? r.richtung : "vor") as Richtung,
+          referenz: (REFERENZ_OPTIONS.includes(r.referenz as Referenz) ? r.referenz : "Enddatum") as Referenz,
+        }));
+        setSelectedTasks(configs);
+        initialSelectedTasksRef.current = configs;
+      });
     supabase
       .from("produkt_aenderungshistorie")
       .select("id, created_at, changed_by, change_description")
@@ -520,9 +562,15 @@ export default function ProduktePage() {
   const saveProduktTaskVorlagen = async (produktId: string) => {
     const supabase = createClient();
     await supabase.from("produkt_task_vorlagen").delete().eq("produkt_id", produktId);
-    if (selectedTaskVorlageIds.length > 0) {
+    if (selectedTasks.length > 0) {
       await supabase.from("produkt_task_vorlagen").insert(
-        selectedTaskVorlageIds.map((task_vorlage_id) => ({ produkt_id: produktId, task_vorlage_id }))
+        selectedTasks.map((t) => ({
+          produkt_id: produktId,
+          task_vorlage_id: t.task_vorlage_id,
+          tage: t.tage,
+          richtung: t.richtung,
+          referenz: t.referenz,
+        }))
       );
     }
   };
@@ -590,11 +638,13 @@ export default function ProduktePage() {
         historyEntries.push(...fieldEntries);
       }
 
-      // Task-Vorlagen (Checkboxen) geändert?
-      const initialIds = [...initialTaskVorlageIdsRef.current].sort();
-      const currentIds = [...selectedTaskVorlageIds].sort();
-      const idsEqual = initialIds.length === currentIds.length && initialIds.every((id, i) => id === currentIds[i]);
-      if (!idsEqual) {
+      // Task-Vorlagen geändert?
+      const initialIds = initialSelectedTasksRef.current.map((t) => t.task_vorlage_id).sort();
+      const currentIds = selectedTasks.map((t) => t.task_vorlage_id).sort();
+      const initialStr = JSON.stringify(initialSelectedTasksRef.current.map((t) => ({ ...t })).sort((a, b) => a.task_vorlage_id.localeCompare(b.task_vorlage_id)));
+      const currentStr = JSON.stringify([...selectedTasks].sort((a, b) => a.task_vorlage_id.localeCompare(b.task_vorlage_id)));
+      const tasksEqual = initialStr === currentStr;
+      if (!tasksEqual) {
         historyEntries.push({
           change_description: `Automatische Tasks: von ${initialIds.length} auf ${currentIds.length} Vorlagen`,
         });
@@ -793,11 +843,11 @@ export default function ProduktePage() {
     p.mindestbudget != null ? `CHF ${p.mindestbudget}` : "—";
 
   return (
-    <div className="flex gap-6 bg-zinc-100 p-6">
+    <div className="flex gap-6 bg-zinc-100 dark:bg-zinc-900 p-6">
       <aside className="w-64 shrink-0 space-y-4">
-        <h3 className="text-sm font-semibold text-zinc-700">Filter</h3>
+        <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Filter</h3>
         <div>
-          <p className="mb-2 text-xs font-medium text-zinc-500">Kategorie</p>
+          <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Kategorie</p>
           <ul className="space-y-1.5">
             {CATEGORIES.map((c) => (
               <li key={c} className="flex items-center gap-2">
@@ -806,9 +856,9 @@ export default function ProduktePage() {
                   id={`kategorie-${c}`}
                   checked={filterKategorien.includes(c)}
                   onChange={() => toggleFilter(setFilterKategorien, c)}
-                  className="h-4 w-4 rounded border-0 border-none bg-white shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)]"
+                  className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#3f3f46_40%)]"
                 />
-                  <label htmlFor={`kategorie-${c}`} className="cursor-pointer text-sm text-zinc-700">
+                  <label htmlFor={`kategorie-${c}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {categoryLabel(c)}
                   </label>
               </li>
@@ -818,7 +868,7 @@ export default function ProduktePage() {
 
         {uniqueVerlage.length > 0 && (
           <div>
-            <p className="mb-2 text-xs font-medium text-zinc-500">Verlag</p>
+            <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Verlag</p>
             <ul className="space-y-1.5">
               {uniqueVerlage.map((v) => (
                 <li key={v} className="flex items-center gap-2">
@@ -827,9 +877,9 @@ export default function ProduktePage() {
                     id={`verlag-${v}`}
                     checked={filterVerlage.includes(v)}
                     onChange={() => toggleFilter(setFilterVerlage, v)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)]"
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#3f3f46_40%)]"
                   />
-                  <label htmlFor={`verlag-${v}`} className="cursor-pointer text-sm text-zinc-700">
+                  <label htmlFor={`verlag-${v}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {v}
                   </label>
                 </li>
@@ -840,7 +890,7 @@ export default function ProduktePage() {
 
         {uniqueKanal.length > 0 && (
           <div>
-            <p className="mb-2 text-xs font-medium text-zinc-500">Kanal</p>
+            <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Kanal</p>
             <ul className="space-y-1.5">
               {uniqueKanal.map((k) => (
                 <li key={k} className="flex items-center gap-2">
@@ -849,9 +899,9 @@ export default function ProduktePage() {
                     id={`kanal-${k}`}
                     checked={filterKanal.includes(k)}
                     onChange={() => toggleFilter(setFilterKanal, k)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)]"
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#3f3f46_40%)]"
                   />
-                  <label htmlFor={`kanal-${k}`} className="cursor-pointer text-sm text-zinc-700">
+                  <label htmlFor={`kanal-${k}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {k}
                   </label>
                 </li>
@@ -862,7 +912,7 @@ export default function ProduktePage() {
 
         {uniqueZielEignung.length > 0 && (
           <div>
-            <p className="mb-2 text-xs font-medium text-zinc-500">Ziel-Eignung</p>
+            <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Ziel-Eignung</p>
             <ul className="space-y-1.5">
               {uniqueZielEignung.map((z) => (
                 <li key={z} className="flex items-center gap-2">
@@ -871,9 +921,9 @@ export default function ProduktePage() {
                     id={`ziel-${z}`}
                     checked={filterZielEignung.includes(z)}
                     onChange={() => toggleFilter(setFilterZielEignung, z)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)]"
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#3f3f46_40%)]"
                   />
-                  <label htmlFor={`ziel-${z}`} className="cursor-pointer text-sm text-zinc-700">
+                  <label htmlFor={`ziel-${z}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {z}
                   </label>
                 </li>
@@ -884,7 +934,7 @@ export default function ProduktePage() {
 
         {uniqueLaufzeit.length > 0 && (
           <div>
-            <p className="mb-2 text-xs font-medium text-zinc-500">Laufzeit</p>
+            <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Laufzeit</p>
             <ul className="space-y-1.5">
               {uniqueLaufzeit.map((l) => (
                 <li key={l} className="flex items-center gap-2">
@@ -893,9 +943,9 @@ export default function ProduktePage() {
                     id={`laufzeit-${l}`}
                     checked={filterLaufzeit.includes(l)}
                     onChange={() => toggleFilter(setFilterLaufzeit, l)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)]"
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#3f3f46_40%)]"
                   />
-                  <label htmlFor={`laufzeit-${l}`} className="cursor-pointer text-sm text-zinc-700">
+                  <label htmlFor={`laufzeit-${l}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {l}
                   </label>
                 </li>
@@ -905,10 +955,10 @@ export default function ProduktePage() {
         )}
 
         <div>
-          <p className="mb-2 text-xs font-medium text-zinc-500">Budget (CHF)</p>
+          <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Budget (CHF)</p>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <label htmlFor="budget-min" className="shrink-0 text-xs text-zinc-500 w-8">Min</label>
+              <label htmlFor="budget-min" className="shrink-0 text-xs text-zinc-600 dark:text-zinc-400 w-8">Min</label>
               <input
                 id="budget-min"
                 type="number"
@@ -917,11 +967,11 @@ export default function ProduktePage() {
                 placeholder="0"
                 value={budgetMin}
                 onChange={(e) => setBudgetMin(e.target.value)}
-                className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm"
+                className="w-full rounded border border-zinc-200 dark:border-zinc-600 px-2 py-1.5 text-sm"
               />
             </div>
             <div className="flex items-center gap-2">
-              <label htmlFor="budget-max" className="shrink-0 text-xs text-zinc-500 w-8">Max</label>
+              <label htmlFor="budget-max" className="shrink-0 text-xs text-zinc-600 dark:text-zinc-400 w-8">Max</label>
               <input
                 id="budget-max"
                 type="number"
@@ -930,7 +980,7 @@ export default function ProduktePage() {
                 placeholder="∞"
                 value={budgetMax}
                 onChange={(e) => setBudgetMax(e.target.value)}
-                className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm"
+                className="w-full rounded border border-zinc-200 dark:border-zinc-600 px-2 py-1.5 text-sm"
               />
             </div>
           </div>
@@ -940,7 +990,7 @@ export default function ProduktePage() {
           <button
             type="button"
             onClick={() => setShowArchived((prev) => !prev)}
-            className={`rounded-lg px-3 py-2 text-sm font-medium ${showArchived ? "bg-zinc-200 text-zinc-800" : "bg-zinc-700 text-white hover:bg-zinc-600"}`}
+            className={`rounded-lg px-3 py-2 text-sm font-medium ${showArchived ? "bg-zinc-200 dark:bg-zinc-600 text-zinc-800 dark:text-zinc-100" : "bg-zinc-700 dark:bg-zinc-600 text-white hover:bg-zinc-600 dark:hover:bg-zinc-500"}`}
           >
             {showArchived ? "Zurück zum Katalog" : "Archiv"}
           </button>
@@ -954,19 +1004,19 @@ export default function ProduktePage() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            className="rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
           >
             Excel importieren
           </button>
           <button
             type="button"
             onClick={handleExcelExport}
-            className="text-sm text-zinc-500 underline hover:text-zinc-700"
+            className="text-sm text-zinc-500 dark:text-zinc-400 underline hover:text-zinc-700 dark:hover:text-zinc-200"
           >
             Excel herunterladen
           </button>
           {importStatus && (
-            <p className="text-xs text-zinc-600">{importStatus}</p>
+            <p className="text-xs text-zinc-600 dark:text-zinc-400">{importStatus}</p>
           )}
         </div>
       </aside>
@@ -974,22 +1024,22 @@ export default function ProduktePage() {
       <div className="min-w-0 flex-1">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <header>
-            <h1 className="text-3xl font-semibold tracking-tight text-zinc-950">
+            <h1 className="text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-100">
               {showArchived ? "Archiv" : "Produktkatalog"}
             </h1>
-            <p className="mt-1 text-sm text-zinc-600">
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
               {loading
                 ? "Laden…"
                 : `${filteredProducts.length} von ${visibleProducts.length} Produkten`}
             </p>
           </header>
           <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-zinc-600">
+            <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
               <span>Sortierung:</span>
               <select
                 value={sortByCategory}
                 onChange={(e) => setSortByCategory(e.target.value as "alphabetisch" | "neueste")}
-                className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                className="rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
               >
                 <option value="alphabetisch">Alphabetisch</option>
                 <option value="neueste">Neueste zuerst</option>
@@ -1000,19 +1050,19 @@ export default function ProduktePage() {
               placeholder="Produktkatalog durchsuchen..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
+              className="h-10 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
             />
             <NeuesProduktButton onClick={() => openModal("new")} />
           </div>
         </div>
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/50 p-4 text-sm text-red-800 dark:text-red-200">
             <p>Fehler beim Laden: {error}</p>
-            <p className="mt-2 text-red-700">
+            <p className="mt-2 text-red-700 dark:text-red-300">
               Falls die Tabelle noch nicht alle Spalten hat: Im Supabase Dashboard
               (SQL Editor) die Migration ausführen:{" "}
-              <code className="rounded bg-red-100 px-1">
+              <code className="rounded bg-red-100 dark:bg-red-900/50 px-1">
                 supabase/migrations/008_produkte_groesse_einheit_waehrung.sql
               </code>
             </p>
@@ -1020,11 +1070,11 @@ export default function ProduktePage() {
         )}
 
         {loading ? (
-          <p className="text-zinc-500">Produkte werden geladen…</p>
+          <p className="text-zinc-500 dark:text-zinc-400">Produkte werden geladen…</p>
         ) : (
           <div className="mt-6 space-y-6">
             {categoriesWithProducts.length === 0 ? (
-              <p className="text-zinc-500">
+              <p className="text-zinc-500 dark:text-zinc-400">
                 {visibleProducts.length === 0
                   ? showArchived
                     ? "Keine archivierten Produkte."
@@ -1040,25 +1090,25 @@ export default function ProduktePage() {
                     : [...filtered].sort((a, b) => (displayName(a) || "").localeCompare(displayName(b) || "", "de"));
                 if (items.length === 0) return null;
                 return (
-                  <section key={cat} className="rounded-lg border-t-4 border-violet-500 bg-white p-5">
-                    <h2 className="mb-4 text-sm font-semibold tracking-wide text-zinc-500">
+                  <section key={cat} className="rounded-lg border-t-4 border-violet-500 bg-white dark:bg-zinc-800 p-5">
+                    <h2 className="mb-4 text-sm font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
                       {categoryLabel(cat)}
                     </h2>
                     <div className="grid gap-4 sm:grid-cols-3">
                       {items.map((p) => (
                         <article
                           key={p.id}
-                          className="rounded-lg border border-zinc-200 bg-white p-4"
+                          className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-4"
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <h3 className="font-semibold text-zinc-950 min-w-0">
+                            <h3 className="font-semibold text-zinc-950 dark:text-zinc-100 min-w-0">
                               {displayName(p)}
                             </h3>
                             <div className="flex shrink-0 items-center gap-1">
                               <button
                                 type="button"
                                 onClick={() => openModal(p.id)}
-                                className="rounded-lg border border-zinc-200 p-2 text-zinc-600 hover:bg-zinc-50"
+                                className="rounded-lg border border-zinc-200 dark:border-zinc-600 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                                 title="Bearbeiten"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1073,7 +1123,7 @@ export default function ProduktePage() {
                                     e.stopPropagation();
                                     setOpenMenuId((prev) => (prev === p.id ? null : p.id));
                                   }}
-                                  className="rounded-lg border border-zinc-200 p-2 text-zinc-600 hover:bg-zinc-50"
+                                  className="rounded-lg border border-zinc-200 dark:border-zinc-600 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                                   title="Menü"
                                 >
                                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -1084,14 +1134,14 @@ export default function ProduktePage() {
                                 </button>
                                 {openMenuId === p.id && (
                                   <div
-                                    className="absolute right-0 top-full z-10 mt-1 min-w-[180px] rounded-lg border border-zinc-200 bg-white py-1"
+                                    className="absolute right-0 top-full z-10 mt-1 min-w-[180px] rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 py-1"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     {p.archived ? (
                                       <button
                                         type="button"
                                         onClick={() => handleWiederherstellen(p.id)}
-                                        className="block w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+                                        className="block w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                                       >
                                         Produkt wiederherstellen
                                       </button>
@@ -1099,7 +1149,7 @@ export default function ProduktePage() {
                                       <button
                                         type="button"
                                         onClick={() => handleArchivieren(p.id)}
-                                        className="block w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+                                        className="block w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                                       >
                                         Produkt archivieren
                                       </button>
@@ -1107,14 +1157,14 @@ export default function ProduktePage() {
                                     <button
                                       type="button"
                                       onClick={() => handleDuplizieren(p)}
-                                      className="block w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+                                      className="block w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                                     >
                                       Duplizieren
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => handleLöschen(p.id)}
-                                      className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                                      className="block w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
                                     >
                                       Löschen
                                     </button>
@@ -1123,34 +1173,34 @@ export default function ProduktePage() {
                               </div>
                             </div>
                           </div>
-                          <p className="mt-1 text-xs text-zinc-500">
+                          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
                             Verlag: {p.verlag ?? "—"} · Kanal: {p.kanal ?? "—"}
                           </p>
-                          <p className="mt-1 text-xs text-zinc-500">
+                          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
                             Platzierung: {p.platzierung ?? "—"}
                           </p>
                           <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
                             <div>
-                              <dt className="text-zinc-500">Grösse</dt>
-                              <dd className="font-medium text-zinc-800">
+                              <dt className="text-zinc-500 dark:text-zinc-400">Grösse</dt>
+                              <dd className="font-medium text-zinc-800 dark:text-zinc-200">
                                 {displaySize(p)}
                               </dd>
                             </div>
                             <div>
-                              <dt className="text-zinc-500">Laufzeit</dt>
-                              <dd className="font-medium text-zinc-800">
+                              <dt className="text-zinc-500 dark:text-zinc-400">Laufzeit</dt>
+                              <dd className="font-medium text-zinc-800 dark:text-zinc-200">
                                 {displayDuration(p)}
                               </dd>
                             </div>
                             <div>
-                              <dt className="text-zinc-500">Preis Netto</dt>
-                              <dd className="font-medium text-zinc-800">
+                              <dt className="text-zinc-500 dark:text-zinc-400">Preis Netto</dt>
+                              <dd className="font-medium text-zinc-800 dark:text-zinc-200">
                                 {displayNet(p)}
                               </dd>
                             </div>
                             <div>
-                              <dt className="text-zinc-500">Mindestbudget</dt>
-                              <dd className="font-medium text-zinc-800">
+                              <dt className="text-zinc-500 dark:text-zinc-400">Mindestbudget</dt>
+                              <dd className="font-medium text-zinc-800 dark:text-zinc-200">
                                 {displayMinBudget(p)}
                               </dd>
                             </div>
@@ -1168,14 +1218,14 @@ export default function ProduktePage() {
 
       {deleteConfirmId != null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl">
-            <p className="text-sm font-medium text-zinc-800">Produkt wirklich löschen?</p>
-            <p className="mt-1 text-xs text-zinc-500">Diese Aktion kann nicht rückgängig gemacht werden.</p>
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-6 shadow-xl">
+            <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">Produkt wirklich löschen?</p>
+            <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">Diese Aktion kann nicht rückgängig gemacht werden.</p>
             <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setDeleteConfirmId(null)}
-                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                className="rounded-lg border border-zinc-200 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
               >
                 Abbrechen
               </button>
@@ -1197,10 +1247,10 @@ export default function ProduktePage() {
           onClick={closeModal}
         >
           <div
-            className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-zinc-200 bg-white shadow-xl"
+            className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="shrink-0 border-b border-zinc-200 px-6 py-4 text-xl font-semibold text-zinc-950">
+            <h3 className="shrink-0 border-b border-zinc-200 dark:border-zinc-700 px-6 py-4 text-xl font-semibold text-zinc-950 dark:text-zinc-100">
               {productModal === "new" ? "Neues Produkt" : "Produkt bearbeiten"}
             </h3>
 
@@ -1214,22 +1264,22 @@ export default function ProduktePage() {
               <div className="flex-1 overflow-y-auto p-6">
                 {/* 1. Basis-Infos */}
                 <section className="mb-6">
-                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 bg-zinc-50/80 px-3 py-2 text-sm font-semibold text-zinc-800">
+                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-800/80 px-3 py-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200">
                     Basis-Infos
                   </h4>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-zinc-500">Produktvariante Titel</label>
+                      <label className="block text-xs font-medium text-zinc-700">Produktvariante Titel</label>
                       <input
                         type="text"
                         value={editingProduct.produktvarianteTitel ?? ""}
                         onChange={(e) => setField("produktvarianteTitel", e.target.value)}
                         className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
                       />
-                      <p className="mt-1 text-xs text-zinc-500">z.B. Liewo 1/4 Seite, Liewo 1/2 Seite</p>
+                      <p className="mt-1 text-xs text-zinc-600">z.B. Liewo 1/4 Seite, Liewo 1/2 Seite</p>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Kategorie</label>
+                      <label className="block text-xs font-medium text-zinc-700">Kategorie</label>
                       <select
                         value={editingProduct.category ?? ""}
                         onChange={(e) => setField("category", e.target.value)}
@@ -1241,7 +1291,7 @@ export default function ProduktePage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Verlag</label>
+                      <label className="block text-xs font-medium text-zinc-700">Verlag</label>
                       <input
                         type="text"
                         value={editingProduct.verlag ?? ""}
@@ -1250,7 +1300,7 @@ export default function ProduktePage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Kanal (Werbeform)</label>
+                      <label className="block text-xs font-medium text-zinc-700">Kanal (Werbeform)</label>
                       <select
                         value={editingProduct.kanal ?? ""}
                         onChange={(e) => setField("kanal", e.target.value)}
@@ -1263,7 +1313,7 @@ export default function ProduktePage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Produktgruppe</label>
+                      <label className="block text-xs font-medium text-zinc-700">Produktgruppe</label>
                       <input
                         type="text"
                         value={editingProduct.produktgruppe ?? ""}
@@ -1272,26 +1322,26 @@ export default function ProduktePage() {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-zinc-500">Beispiel (Platzhalter für Bild)</label>
+                      <label className="block text-xs font-medium text-zinc-700">Beispiel (Platzhalter für Bild)</label>
                       <textarea
                         value={editingProduct.beispielBild ?? ""}
                         onChange={(e) => setField("beispielBild", e.target.value)}
                         rows={2}
                         className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
                       />
-                      <p className="mt-1 text-xs text-zinc-500">Platzhalter für zukünftige Bildfunktion. Diese Funktion ist derzeit deaktiviert.</p>
+                      <p className="mt-1 text-xs text-zinc-600">Platzhalter für zukünftige Bildfunktion. Diese Funktion ist derzeit deaktiviert.</p>
                     </div>
                   </div>
                 </section>
 
                 {/* 2. Placement & Kreativ-Specs */}
                 <section className="mb-6">
-                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 bg-zinc-50/80 px-3 py-2 text-sm font-semibold text-zinc-800">
+                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-800/80 px-3 py-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200">
                     Placement &amp; Kreativ-Specs
                   </h4>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-zinc-500">Platzierung</label>
+                      <label className="block text-xs font-medium text-zinc-700">Platzierung</label>
                       <textarea
                         value={editingProduct.platzierung ?? ""}
                         onChange={(e) => setField("platzierung", e.target.value)}
@@ -1300,17 +1350,17 @@ export default function ProduktePage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Position</label>
+                      <label className="block text-xs font-medium text-zinc-700">Position</label>
                       <input
                         type="text"
                         value={editingProduct.position ?? ""}
                         onChange={(e) => setField("position", e.target.value)}
                         className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
                       />
-                      <p className="mt-1 text-xs text-zinc-500">z.B. Above the Fold – Homepage</p>
+                      <p className="mt-1 text-xs text-zinc-600">z.B. Above the Fold – Homepage</p>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Ziel-Eignung</label>
+                      <label className="block text-xs font-medium text-zinc-700">Ziel-Eignung</label>
                       <select
                         value={editingProduct.zielEignung ?? ""}
                         onChange={(e) => setField("zielEignung", e.target.value)}
@@ -1323,17 +1373,17 @@ export default function ProduktePage() {
                       </select>
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-zinc-500">Zusatzinformationen für diese Produktvariante</label>
+                      <label className="block text-xs font-medium text-zinc-700">Zusatzinformationen für diese Produktvariante</label>
                       <textarea
                         value={editingProduct.zusatzinformationen ?? ""}
                         onChange={(e) => setField("zusatzinformationen", e.target.value)}
                         rows={2}
                         className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
                       />
-                      <p className="mt-1 text-xs text-zinc-500">z.B. Werberadius: Liechtenstein</p>
+                      <p className="mt-1 text-xs text-zinc-600">z.B. Werberadius: Liechtenstein</p>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Farbraum</label>
+                      <label className="block text-xs font-medium text-zinc-700">Farbraum</label>
                       <select
                         value={editingProduct.creativeFarbe === "RGB" || editingProduct.creativeFarbe === "CMYK" ? editingProduct.creativeFarbe : ""}
                         onChange={(e) => setField("creativeFarbe", e.target.value || null)}
@@ -1345,17 +1395,17 @@ export default function ProduktePage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Dateityp</label>
+                      <label className="block text-xs font-medium text-zinc-700">Dateityp</label>
                       <input
                         type="text"
                         value={editingProduct.creativeDateityp ?? ""}
                         onChange={(e) => setField("creativeDateityp", e.target.value)}
                         className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
                       />
-                      <p className="mt-1 text-xs text-zinc-500">z.B. PDF</p>
+                      <p className="mt-1 text-xs text-zinc-600">z.B. PDF</p>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Grösse</label>
+                      <label className="block text-xs font-medium text-zinc-700">Grösse</label>
                       <div className="mt-1 flex rounded-lg border border-zinc-200">
                         <input
                           type="text"
@@ -1373,20 +1423,20 @@ export default function ProduktePage() {
                           <option value="cm">cm</option>
                         </select>
                       </div>
-                      <p className="mt-1 text-xs text-zinc-500">z.B. 728 x 90 (px) oder 210 x 297 (mm)</p>
+                      <p className="mt-1 text-xs text-zinc-600">z.B. 728 x 90 (px) oder 210 x 297 (mm)</p>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Typ</label>
+                      <label className="block text-xs font-medium text-zinc-700">Typ</label>
                       <input
                         type="text"
                         value={editingProduct.creativeTyp ?? ""}
                         onChange={(e) => setField("creativeTyp", e.target.value)}
                         className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
                       />
-                      <p className="mt-1 text-xs text-zinc-500">z.B. Statischer Banner oder Animiert</p>
+                      <p className="mt-1 text-xs text-zinc-600">z.B. Statischer Banner oder Animiert</p>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Creative Deadline</label>
+                      <label className="block text-xs font-medium text-zinc-700">Creative Deadline</label>
                       <div className="mt-1 flex rounded-lg border border-zinc-200">
                         <span className="flex items-center rounded-l-lg bg-zinc-100 pl-3 pr-2 text-zinc-500" aria-hidden>
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1409,12 +1459,12 @@ export default function ProduktePage() {
 
                 {/* 3. Preise & Budget */}
                 <section className="mb-6">
-                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 bg-zinc-50/80 px-3 py-2 text-sm font-semibold text-zinc-800">
+                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-800/80 px-3 py-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200">
                     Preise &amp; Budget
                   </h4>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Währung</label>
+                      <label className="block text-xs font-medium text-zinc-700">Währung</label>
                       <select
                         value={editingProduct.waehrung ?? "CHF"}
                         onChange={(e) => setField("waehrung", e.target.value as "CHF" | "EUR")}
@@ -1425,7 +1475,7 @@ export default function ProduktePage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Laufzeit pro Einheit</label>
+                      <label className="block text-xs font-medium text-zinc-700">Laufzeit pro Einheit</label>
                       <select
                         value={editingProduct.laufzeitProEinheit ?? ""}
                         onChange={(e) => setField("laufzeitProEinheit", e.target.value)}
@@ -1437,7 +1487,7 @@ export default function ProduktePage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Preis Brutto pro Einheit</label>
+                      <label className="block text-xs font-medium text-zinc-700">Preis Brutto pro Einheit</label>
                       <div className="mt-1 flex rounded-lg border border-zinc-200">
                         <input
                           type="number"
@@ -1453,7 +1503,7 @@ export default function ProduktePage() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Preis Netto pro Einheit</label>
+                      <label className="block text-xs font-medium text-zinc-700">Preis Netto pro Einheit</label>
                       <div className="mt-1 flex rounded-lg border border-zinc-200">
                         <input
                           type="number"
@@ -1469,7 +1519,7 @@ export default function ProduktePage() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Preis Agenturservice pro Einheit</label>
+                      <label className="block text-xs font-medium text-zinc-700">Preis Agenturservice pro Einheit</label>
                       <div className="mt-1 flex rounded-lg border border-zinc-200">
                         <input
                           type="number"
@@ -1485,7 +1535,7 @@ export default function ProduktePage() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Mindestbudget</label>
+                      <label className="block text-xs font-medium text-zinc-700">Mindestbudget</label>
                       <div className="mt-1 flex rounded-lg border border-zinc-200">
                         <input
                           type="number"
@@ -1501,7 +1551,7 @@ export default function ProduktePage() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-zinc-500">Empfohlenes Medienbudget (optional)</label>
+                      <label className="block text-xs font-medium text-zinc-700">Empfohlenes Medienbudget (optional)</label>
                       <input
                         type="text"
                         value={editingProduct.empfohlenesMedienbudget ?? ""}
@@ -1510,57 +1560,128 @@ export default function ProduktePage() {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-zinc-500">Buchungsvoraussetzung</label>
+                      <label className="block text-xs font-medium text-zinc-700">Buchungsvoraussetzung</label>
                       <textarea
                         value={editingProduct.buchungsvoraussetzung ?? ""}
                         onChange={(e) => setField("buchungsvoraussetzung", e.target.value)}
                         rows={2}
                         className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
                       />
-                      <p className="mt-1 text-xs text-zinc-500">z.B. Meta Business Manager Setup</p>
+                      <p className="mt-1 text-xs text-zinc-600">z.B. Meta Business Manager Setup</p>
                     </div>
                   </div>
                 </section>
 
                 {/* 4. Automatisierung */}
                 <section className="mb-6">
-                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 bg-zinc-50/80 px-3 py-2 text-sm font-semibold text-zinc-800">
+                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-800/80 px-3 py-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200">
                     Automatisierung
                   </h4>
-                  <p className="mb-4 text-xs text-zinc-500">
+                  <p className="mb-4 text-xs text-zinc-600 dark:text-zinc-400">
                     Tasks, die beim Hinzufügen dieses Produkts zu einem Mediaplan automatisch erstellt werden. Verwaltung: Einstellungen → Task-Vorlagen.
                   </p>
+
                   <div className="space-y-4">
                     {Array.from(new Set(taskVorlagen.map((t) => t.category))).map((cat) => {
                       const items = taskVorlagen.filter((t) => t.category === cat);
                       return (
                         <div key={cat}>
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                             {cat}
                           </p>
-                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <div className="flex flex-col gap-1">
                             {items.map((t) => {
-                              const selected = selectedTaskVorlageIds.includes(t.id);
+                              const cfg = selectedTasks.find((c) => c.task_vorlage_id === t.id);
+                              const selected = cfg != null;
+                              const isGleicherTag = cfg?.richtung === "am gleichen Tag";
+                              const tagTage = cfg ? (cfg.tage === 1 ? "Tag" : "Tage") : "Tage";
+                              const inputClass = isGleicherTag
+                                ? "cursor-not-allowed border-zinc-200 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-700/50 text-zinc-400 dark:text-zinc-500"
+                                : "border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100";
                               return (
-                                <button
-                                  key={t.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedTaskVorlageIds((prev) =>
-                                      prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
-                                    );
-                                  }}
-                                  className={`rounded-lg border px-3 py-2.5 text-left text-sm transition ${
-                                    selected
-                                      ? "border-violet-500 bg-violet-50 text-violet-900 ring-1 ring-violet-500/30"
-                                      : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50"
-                                  }`}
-                                >
-                                  <span className="font-medium">{t.title}</span>
-                                  {t.description && (
-                                    <span className="mt-0.5 block text-xs opacity-90">{t.description}</span>
+                                <div key={t.id} className="flex flex-col gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedTasks((prev) => {
+                                        if (prev.some((c) => c.task_vorlage_id === t.id)) {
+                                          return prev.filter((c) => c.task_vorlage_id !== t.id);
+                                        }
+                                        const def = getDefaultTaskConfig(t.title);
+                                        return [...prev, { task_vorlage_id: t.id, ...def }];
+                                      });
+                                    }}
+                                    className={`rounded-lg border px-3 py-2.5 text-left text-sm transition ${
+                                      selected
+                                        ? "border-violet-500 bg-violet-50 dark:bg-violet-900/40 text-violet-900 dark:text-violet-200 ring-1 ring-violet-500/30"
+                                        : "border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-zinc-300 dark:hover:border-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                                    }`}
+                                  >
+                                    <span className="font-medium">{t.title}</span>
+                                    {t.description && (
+                                      <span className="mt-0.5 block text-xs opacity-90">{t.description}</span>
+                                    )}
+                                  </button>
+                                  {selected && cfg && (
+                                    <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-zinc-50/50 dark:bg-zinc-800/50 pl-4 pr-3 py-2">
+                                      <span className="text-zinc-600 dark:text-zinc-400">[</span>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        value={cfg.tage}
+                                        disabled={isGleicherTag}
+                                        onChange={(e) => {
+                                          const v = parseInt(e.target.value, 10);
+                                          setSelectedTasks((prev) =>
+                                            prev.map((x) =>
+                                              x.task_vorlage_id === cfg.task_vorlage_id ? { ...x, tage: Number.isNaN(v) ? 0 : Math.max(0, v) } : x
+                                            )
+                                          );
+                                        }}
+                                        className={`w-14 rounded border px-2 py-1 text-sm ${inputClass}`}
+                                        aria-label="Tage"
+                                      />
+                                      <span className="text-zinc-600 dark:text-zinc-400">]</span>
+                                      <span className="text-zinc-600 dark:text-zinc-400">{tagTage}</span>
+                                      <span className="text-zinc-600 dark:text-zinc-400">[</span>
+                                      <select
+                                        value={cfg.richtung}
+                                        onChange={(e) =>
+                                          setSelectedTasks((prev) =>
+                                            prev.map((x) =>
+                                              x.task_vorlage_id === cfg.task_vorlage_id ? { ...x, richtung: e.target.value as Richtung } : x
+                                            )
+                                          )
+                                        }
+                                        className="rounded border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1 text-sm text-zinc-900 dark:text-zinc-100"
+                                        aria-label="Richtung"
+                                      >
+                                        {RICHTUNG_OPTIONS.map((r) => (
+                                          <option key={r} value={r}>{RICHTUNG_LABEL[r]}</option>
+                                        ))}
+                                      </select>
+                                      <span className="text-zinc-600 dark:text-zinc-400">]</span>
+                                      <span className="text-zinc-600 dark:text-zinc-400">[</span>
+                                      <select
+                                        value={cfg.referenz}
+                                        onChange={(e) =>
+                                          setSelectedTasks((prev) =>
+                                            prev.map((x) =>
+                                              x.task_vorlage_id === cfg.task_vorlage_id ? { ...x, referenz: e.target.value as Referenz } : x
+                                            )
+                                          )
+                                        }
+                                        className="rounded border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1 text-sm text-zinc-900 dark:text-zinc-100"
+                                        aria-label="Referenz"
+                                      >
+                                        {REFERENZ_OPTIONS.map((r) => (
+                                          <option key={r} value={r}>{r}</option>
+                                        ))}
+                                      </select>
+                                      <span className="text-zinc-600 dark:text-zinc-400">]</span>
+                                    </div>
                                   )}
-                                </button>
+                                </div>
                               );
                             })}
                           </div>
@@ -1571,27 +1692,27 @@ export default function ProduktePage() {
                 </section>
 
                 {productModal === "new" && (
-                  <section className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3">
+                  <section className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 p-3">
                     <label className="flex flex-wrap items-center gap-2 text-sm text-zinc-600">
                       <span>Warnung bei Ähnlichkeit ab:</span>
                       <select
                         value={fuzzyMatchThreshold}
                         onChange={(e) => setFuzzyMatchThreshold(Number(e.target.value))}
-                        className="rounded border border-zinc-200 bg-white px-2 py-1.5 text-zinc-900"
+                        className="rounded border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
                       >
                         {FUZZY_MATCH_THRESHOLDS.map((t) => (
                           <option key={t.value} value={t.value}>{t.label}</option>
                         ))}
                       </select>
                     </label>
-                    <p className="mt-1 text-xs text-zinc-500">
+                    <p className="mt-1 text-xs text-zinc-600">
                       Beim Speichern wird geprüft, ob ähnliche Produkte existieren. Je niedriger der Wert, desto mehr Treffer.
                     </p>
                   </section>
                 )}
 
                 {productModal !== "new" && (
-                  <section className="mt-4 border-t border-zinc-200 pt-4">
+                  <section className="mt-4 border-t border-zinc-200 dark:border-zinc-700 pt-4">
                     <h4 className="mb-3 text-sm font-semibold text-zinc-700">
                       Änderungshistorie
                     </h4>
@@ -1614,7 +1735,7 @@ export default function ProduktePage() {
                         return (
                           <li
                             key={e.id}
-                            className="rounded-lg border border-zinc-100 bg-zinc-50/50 px-3 py-2 text-sm text-zinc-700"
+                            className="rounded-lg border border-zinc-100 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-200"
                           >
                             <span className="font-medium">{e.change_description}</span>
                             <span className="mx-2 text-zinc-400">·</span>
@@ -1633,12 +1754,12 @@ export default function ProduktePage() {
                   </section>
                 )}
               </div>
-              <div className="shrink-0 border-t border-zinc-200 bg-white px-6 py-4">
+              <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-6 py-4">
                 <div className="flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                    className="rounded-lg border border-zinc-200 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                   >
                     Abbrechen
                   </button>
@@ -1683,13 +1804,13 @@ export default function ProduktePage() {
           onClick={() => setSimilarProductsDialog(null)}
         >
           <div
-            className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-5 shadow-xl"
+            className="w-full max-w-md rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-zinc-900">
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
               Ähnliche Produkte gefunden
             </h3>
-            <p className="mt-2 text-sm text-zinc-600">
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
               Es gibt bereits {similarProductsDialog.similar.length} Produkt
               {similarProductsDialog.similar.length === 1 ? "" : "e"}, die dem neuen sehr ähneln.
               Trotzdem neu anlegen oder ein bestehendes verwenden?
@@ -1704,12 +1825,12 @@ export default function ProduktePage() {
                       setEditingProduct({ ...product });
                       setSimilarProductsDialog(null);
                     }}
-                    className="flex w-full items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50/50 px-3 py-2 text-left text-sm hover:bg-violet-50 hover:border-violet-200"
+                    className="flex w-full items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-600 bg-zinc-50/50 dark:bg-zinc-800/50 px-3 py-2 text-left text-sm hover:bg-violet-50 dark:hover:bg-violet-900/30 hover:border-violet-200 dark:hover:border-violet-600"
                   >
-                    <span className="font-medium text-zinc-900">
+                    <span className="font-medium text-zinc-900 dark:text-zinc-100">
                       {product.produktvarianteTitel ?? product.category ?? product.id}
                     </span>
-                    <span className="shrink-0 text-xs text-zinc-500">
+                    <span className="shrink-0 text-xs text-zinc-600 dark:text-zinc-400">
                       {Math.round(score * 100)}% ähnlich
                     </span>
                   </button>
@@ -1720,7 +1841,7 @@ export default function ProduktePage() {
               <button
                 type="button"
                 onClick={() => setSimilarProductsDialog(null)}
-                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                className="rounded-lg border border-zinc-200 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
               >
                 Abbrechen
               </button>

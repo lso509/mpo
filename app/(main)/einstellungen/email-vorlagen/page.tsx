@@ -148,7 +148,7 @@ export default function EmailVorlagenPage() {
           onClick={() => setNewModalOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl"
+            className="w-full max-w-md rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-xl font-semibold text-zinc-950">
