@@ -78,6 +78,8 @@ const NAV = [
   { href: "/einstellungen/email-vorlagen", label: "E-Mail Vorlagen", icon: icons.mail },
 ] as const;
 
+type ProfileRole = "agency" | "customer" | null;
+
 function initials(email: string | undefined): string {
   if (!email) return "?";
   const part = email.split("@")[0];
@@ -85,10 +87,17 @@ function initials(email: string | undefined): string {
   return part ? part.slice(0, 1).toUpperCase() : "?";
 }
 
+function roleLabel(role: ProfileRole): string {
+  if (role === "agency") return "Agentur";
+  if (role === "customer") return "Kunde";
+  return "";
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [profileRole, setProfileRole] = useState<ProfileRole>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -99,6 +108,29 @@ export function Sidebar() {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!user?.id) {
+      setProfileRole(null);
+      return;
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single()
+      .then(
+        ({ data }) => {
+          if (!cancelled) setProfileRole((data?.role as ProfileRole) ?? null);
+        },
+        () => {
+          if (!cancelled) setProfileRole(null);
+        }
+      );
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -107,7 +139,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="sticky top-0 flex h-screen w-56 flex-col border-r border-zinc-200 bg-white">
+    <aside className="sticky top-0 flex h-screen w-64 flex-col border-r border-zinc-200 bg-white">
       <SidebarLogo />
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-3 pt-4">
         {NAV.map((item) => {
@@ -145,9 +177,10 @@ export function Sidebar() {
             <p className="truncate text-sm font-medium text-zinc-900">
               {user?.user_metadata?.full_name ?? user?.email ?? "Gast"}
             </p>
-            {user?.email && (
-              <p className="truncate text-xs text-zinc-500">{user.email}</p>
-            )}
+            <p className="truncate text-xs text-zinc-500">
+              {user?.email}
+              {profileRole ? ` · ${roleLabel(profileRole)}` : ""}
+            </p>
           </div>
         </div>
         <button

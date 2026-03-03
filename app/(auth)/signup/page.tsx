@@ -12,6 +12,7 @@ function SignupForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"agency" | "customer">("customer");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
@@ -24,7 +25,10 @@ function SignupForm() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
+        data: { role },
+      },
     });
     setLoading(false);
     if (error) {
@@ -82,6 +86,20 @@ function SignupForm() {
             required
             className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
           />
+        </div>
+        <div>
+          <label htmlFor="role" className="block text-sm font-medium text-zinc-700">
+            Ich bin
+          </label>
+          <select
+            id="role"
+            value={role}
+            onChange={(e) => setRole(e.target.value as "agency" | "customer")}
+            className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+          >
+            <option value="customer">Kunde</option>
+            <option value="agency">Agentur-Mitarbeiter</option>
+          </select>
         </div>
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-zinc-700">
