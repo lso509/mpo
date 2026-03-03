@@ -87,12 +87,13 @@ export default function KundenPage() {
         </button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {KPI_CARDS.map((kpi) => (
-          <div
-            key={kpi.label}
-            className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
-          >
+      <section className="rounded-lg border-t-4 border-violet-500 bg-white p-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {KPI_CARDS.map((kpi) => (
+            <div
+              key={kpi.label}
+              className="rounded-lg border border-zinc-200 bg-white p-5"
+            >
             <p className="text-xs font-medium text-zinc-500">{kpi.label}</p>
             <p className="mt-1 text-2xl font-semibold text-zinc-950">
               {kpi.value}
@@ -100,13 +101,14 @@ export default function KundenPage() {
             <p className="mt-0.5 text-xs text-zinc-500">{kpi.sub}</p>
           </div>
         ))}
-      </div>
+        </div>
+      </section>
 
-      <section>
-        <h2 className="mb-3 text-lg font-semibold text-zinc-950">
+      <section className="rounded-lg border-t-4 border-violet-500 bg-white p-5">
+        <h2 className="mb-4 text-sm font-semibold tracking-wide text-zinc-500">
           Alle Kunden
         </h2>
-        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+        <div className="overflow-hidden rounded-lg border border-zinc-200">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50">
@@ -197,7 +199,7 @@ export default function KundenPage() {
       </section>
 
       {selected != null && (
-        <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <section className="rounded-lg border-t-4 border-violet-500 bg-white p-6">
           <h3 className="text-lg font-semibold text-zinc-950">
             {selected.name} – Details
           </h3>

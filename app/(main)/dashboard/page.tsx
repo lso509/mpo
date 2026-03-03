@@ -76,7 +76,7 @@ function TaskCard({
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => e.key === "Enter" && onClick()}
-      className={`rounded-2xl border p-5 shadow-sm transition hover:shadow-md ${
+      className={`rounded-lg border p-5 transition ${
         isOverdue
           ? "border-violet-200 bg-gradient-to-br from-violet-50 to-blue-50"
           : "cursor-pointer border-zinc-200 bg-white"
@@ -136,8 +136,8 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="grid gap-4">
-      <header className="flex items-end justify-between gap-4">
+    <section className="rounded-lg border-t-4 border-violet-500 bg-white p-5">
+      <header className="mb-4 flex items-end justify-between gap-4">
         <div className="flex items-baseline gap-3">
           <h2 className="text-lg font-semibold tracking-tight text-zinc-950">
             {title}
@@ -188,7 +188,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="mx-auto max-w-6xl space-y-8">
+      <div className="mx-auto max-w-6xl space-y-6">
         <header>
           <h1 className="text-3xl font-semibold tracking-tight text-zinc-950">
             Agentur-Dashboard
@@ -204,7 +204,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <section className="space-y-3">
+        <section className="rounded-lg border-t-4 border-violet-500 bg-white p-5">
           <div className="flex items-center gap-2 text-sm font-medium text-zinc-700">
             <span aria-hidden>🔽</span>
             Nach Mitarbeiter filtern

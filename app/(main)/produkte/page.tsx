@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { NeuesProduktButton } from "@/app/components/NeuesProduktButton";
 import { createClient } from "@/lib/supabase/client";
+import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 
 const CATEGORIES = [
@@ -27,6 +28,7 @@ const LAUFZEIT_OPTIONS = ["1 Woche", "2 Wochen", "1 Monat", "3 Monate", "6 Monat
 export type Product = {
   id: string;
   archived?: boolean;
+  created_at?: string;
   category: string;
   verlag: string | null;
   kanal: string | null;
@@ -65,6 +67,7 @@ function mapRow(row: Record<string, unknown>): Product {
   return {
     id: String(row.id),
     archived: Boolean(row.archived),
+    created_at: row.created_at != null ? String(row.created_at) : undefined,
     category: String(category),
     verlag: row.verlag != null ? String(row.verlag) : null,
     kanal: row.kanal != null ? String(row.kanal) : null,
@@ -224,6 +227,60 @@ function productToRow(p: Partial<Product>): Record<string, unknown> {
   };
 }
 
+/** Spalten für Änderungshistorie (ein Key pro Anzeigename) */
+const CHANGELOG_FIELDS: Record<string, string> = {
+  category: "Kategorie",
+  produktvariante_titel: "Produktname",
+  verlag: "Verlag",
+  kanal: "Kanal",
+  platzierung: "Platzierung",
+  position: "Position",
+  ziel_eignung: "Ziel-Eignung",
+  creative_groesse: "Creative Grösse",
+  laufzeit_pro_einheit: "Laufzeit",
+  preis_brutto_chf: "Preis Brutto CHF",
+  preis_netto_chf: "Preis Netto CHF",
+  preis_agenturservice: "Preis Agenturservice",
+  mindestbudget: "Mindestbudget",
+  creative_deadline_date: "Creative Deadline (Datum)",
+  creative_deadline_tage: "Creative Deadline (Tage)",
+  zusatzinformationen: "Zusatzinformationen",
+  buchungsvoraussetzung: "Buchungsvoraussetzung",
+  empfohlenes_medienbudget: "Empfohlenes Medienbudget",
+};
+
+const NUMERIC_CHANGELOG_KEYS = new Set([
+  "preis_brutto_chf", "preis_netto_chf", "preis_agenturservice", "mindestbudget", "creative_deadline_tage",
+]);
+
+function normalizeForCompare(key: string, val: unknown): string {
+  if (val == null || val === "") return "";
+  if (NUMERIC_CHANGELOG_KEYS.has(key)) {
+    const n = Number(val);
+    return Number.isNaN(n) ? String(val).trim() : String(n);
+  }
+  return String(val).trim();
+}
+
+function buildChangelogEntries(
+  oldRow: Record<string, unknown>,
+  newRow: Record<string, unknown>
+): { change_description: string }[] {
+  const entries: { change_description: string }[] = [];
+  for (const [key, label] of Object.entries(CHANGELOG_FIELDS)) {
+    const oldNorm = normalizeForCompare(key, oldRow[key]);
+    const newNorm = normalizeForCompare(key, newRow[key]);
+    if (oldNorm !== newNorm) {
+      const oldDisplay = oldNorm || "—";
+      const newDisplay = newNorm || "—";
+      entries.push({
+        change_description: `${label}: von ${oldDisplay} auf ${newDisplay}`,
+      });
+    }
+  }
+  return entries;
+}
+
 const emptyProduct: Partial<Product> = {
   category: CATEGORIES[0],
   verlag: null,
@@ -291,7 +348,11 @@ export default function ProduktePage() {
   const [showArchived, setShowArchived] = useState(false);
   const [taskVorlagen, setTaskVorlagen] = useState<TaskVorlage[]>([]);
   const [selectedTaskVorlageIds, setSelectedTaskVorlageIds] = useState<string[]>([]);
+  const [aenderungshistorie, setAenderungshistorie] = useState<{ id: string; created_at: string; changed_by: string | null; change_description: string }[]>([]);
+  const [sortByCategory, setSortByCategory] = useState<"alphabetisch" | "neueste">("alphabetisch");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** Beim Öffnen des Modals geladene Task-Vorlagen-IDs (zum Erkennen von Änderungen beim Speichern) */
+  const initialTaskVorlageIdsRef = useRef<string[]>([]);
 
   const toggleFilter = (
     setter: React.Dispatch<React.SetStateAction<string[]>>,
@@ -333,12 +394,25 @@ export default function ProduktePage() {
   useEffect(() => {
     if (productModal == null || productModal === "new") {
       setSelectedTaskVorlageIds([]);
+      setAenderungshistorie([]);
+      initialTaskVorlageIdsRef.current = [];
       return;
     }
     const supabase = createClient();
     supabase.from("produkt_task_vorlagen").select("task_vorlage_id").eq("produkt_id", productModal).then(({ data }) => {
-      setSelectedTaskVorlageIds((data ?? []).map((r) => r.task_vorlage_id));
+      const ids = (data ?? []).map((r) => r.task_vorlage_id as string);
+      setSelectedTaskVorlageIds(ids);
+      initialTaskVorlageIdsRef.current = ids;
     });
+    supabase
+      .from("produkt_aenderungshistorie")
+      .select("id, created_at, changed_by, change_description")
+      .eq("produkt_id", productModal)
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        setAenderungshistorie((data ?? []) as { id: string; created_at: string; changed_by: string | null; change_description: string }[]);
+      });
   }, [productModal]);
 
   const openModal = (id: string | "new") => {
@@ -377,7 +451,7 @@ export default function ProduktePage() {
     const row = productToRow(editingProduct);
 
     if (productModal === "new" || asNewVariant) {
-      // "Als neue Produktvariante speichern": Änderungen als neues Produkt speichern
+      // "Variante erstellen": Änderungen als neues Produkt speichern
       const { data: inserted, error: err } = await supabase.from("produkte").insert(row).select("id").single();
       if (err) setError(err.message);
       else if (inserted?.id) {
@@ -387,7 +461,7 @@ export default function ProduktePage() {
         closeModal();
       }
     } else if (typeof productModal === "string" && overwrite) {
-      // "Produkt überschreiben und alte Variante archivieren": aktuelle Version archivieren, dann neue Version anlegen
+      // "Ersetzen & Archivieren": aktuelle Version archivieren, dann neue Version anlegen
       await supabase.from("produkte").update({ archived: true }).eq("id", productModal);
       const { data: inserted, error: err } = await supabase.from("produkte").insert(row).select("id").single();
       if (err) setError(err.message);
@@ -398,7 +472,32 @@ export default function ProduktePage() {
         closeModal();
       }
     } else if (typeof productModal === "string") {
-      // "Speichern": vorhandenes Produkt mit Änderungen überschreiben
+      // "Speichern": vorhandenes Produkt mit Änderungen überschreiben + Änderungshistorie
+      const { data: currentRow } = await supabase.from("produkte").select("*").eq("id", productModal).single();
+      const historyEntries: { change_description: string }[] = [];
+
+      if (currentRow) {
+        const fieldEntries = buildChangelogEntries(currentRow as Record<string, unknown>, row as Record<string, unknown>);
+        historyEntries.push(...fieldEntries);
+      }
+
+      // Task-Vorlagen (Checkboxen) geändert?
+      const initialIds = [...initialTaskVorlageIdsRef.current].sort();
+      const currentIds = [...selectedTaskVorlageIds].sort();
+      const idsEqual = initialIds.length === currentIds.length && initialIds.every((id, i) => id === currentIds[i]);
+      if (!idsEqual) {
+        historyEntries.push({
+          change_description: `Automatische Tasks: von ${initialIds.length} auf ${currentIds.length} Vorlagen`,
+        });
+      }
+
+      if (historyEntries.length > 0) {
+        const { error: histErr } = await supabase.from("produkt_aenderungshistorie").insert(
+          historyEntries.map((e) => ({ produkt_id: productModal, changed_by: null, change_description: e.change_description }))
+        );
+        if (histErr) setError(`Änderungshistorie: ${histErr.message}`);
+      }
+
       const { error: err } = await supabase.from("produkte").update(row).eq("id", productModal);
       if (err) setError(err.message);
       else {
@@ -775,21 +874,26 @@ export default function ProduktePage() {
                 : `${filteredProducts.length} von ${visibleProducts.length} Produkten`}
             </p>
           </header>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-zinc-600">
+              <span>Sortierung:</span>
+              <select
+                value={sortByCategory}
+                onChange={(e) => setSortByCategory(e.target.value as "alphabetisch" | "neueste")}
+                className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+              >
+                <option value="alphabetisch">Alphabetisch</option>
+                <option value="neueste">Neueste zuerst</option>
+              </select>
+            </label>
             <input
               type="search"
               placeholder="Produktkatalog durchsuchen..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
+              className="h-10 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
             />
-            <button
-              type="button"
-              onClick={() => openModal("new")}
-              className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
-            >
-              + Neues Produkt
-            </button>
+            <NeuesProduktButton onClick={() => openModal("new")} />
           </div>
         </div>
 
@@ -820,7 +924,11 @@ export default function ProduktePage() {
               </p>
             ) : (
               categoriesWithProducts.map((cat) => {
-                const items = filteredProducts.filter((p) => p.category === cat);
+                const filtered = filteredProducts.filter((p) => p.category === cat);
+                const items =
+                  sortByCategory === "neueste"
+                    ? [...filtered].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
+                    : [...filtered].sort((a, b) => (displayName(a) || "").localeCompare(displayName(b) || "", "de"));
                 if (items.length === 0) return null;
                 return (
                   <section key={cat} className="rounded-lg border-t-4 border-violet-500 bg-white p-5">
@@ -1391,7 +1499,7 @@ export default function ProduktePage() {
                                     prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
                                   );
                                 }}
-                                className="mt-0.5 h-4 w-4 shrink-0 rounded border-0 border-none bg-white shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)]"
+                                className="mt-0.5 h-4 w-4 shrink-0 rounded border-0 border-none bg-zinc-100 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#f4f4f5_40%)]"
                               />
                               <label htmlFor={`task-${t.id}`} className="cursor-pointer text-sm">
                                 <span className="font-medium text-zinc-800">{t.title}</span>
@@ -1424,7 +1532,7 @@ export default function ProduktePage() {
                       disabled={saving}
                       className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
                     >
-                      Als neue Produktvariante speichern
+                      Variante erstellen
                     </button>
                     <button
                       type="button"
@@ -1432,7 +1540,7 @@ export default function ProduktePage() {
                       disabled={saving}
                       className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
                     >
-                      Produkt überschreiben und alte Variante archivieren
+                      Ersetzen & Archivieren
                     </button>
                   </>
                 )}
@@ -1446,6 +1554,49 @@ export default function ProduktePage() {
                     : "Speichern"}
                 </button>
               </div>
+
+              {productModal !== "new" && (
+                <section className="mt-6 border-t border-zinc-200 pt-4">
+                  <h4 className="mb-3 text-sm font-semibold text-zinc-700">
+                    Änderungshistorie
+                  </h4>
+                  {aenderungshistorie.length === 0 ? (
+                    <p className="text-sm text-zinc-500">
+                      Noch keine Änderungen erfasst.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {aenderungshistorie.map((e) => {
+                        const at = e.created_at
+                          ? new Date(e.created_at).toLocaleString("de-CH", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "—";
+                        return (
+                          <li
+                            key={e.id}
+                            className="rounded-lg border border-zinc-100 bg-zinc-50/50 px-3 py-2 text-sm text-zinc-700"
+                          >
+                            <span className="font-medium">{e.change_description}</span>
+                            <span className="mx-2 text-zinc-400">·</span>
+                            <span className="text-zinc-500">am {at}</span>
+                            {e.changed_by && (
+                              <>
+                                <span className="mx-2 text-zinc-400">·</span>
+                                <span className="text-zinc-500">{e.changed_by}</span>
+                              </>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+              )}
             </form>
           </div>
         </div>

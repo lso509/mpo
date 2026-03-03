@@ -64,14 +64,7 @@ export function Sidebar() {
 
   return (
     <aside className="flex w-56 flex-col border-r border-zinc-200 bg-white">
-      <Link
-        href="/dashboard"
-        className="flex items-center gap-2 border-b border-zinc-200 px-4 py-4 hover:bg-zinc-50"
-      >
-        <span className="text-lg font-bold text-zinc-900">MP</span>
-        <span className="font-semibold text-zinc-900">MediaPlan Pro</span>
-      </Link>
-      <nav className="flex flex-1 flex-col gap-0.5 p-3">
+      <nav className="flex flex-1 flex-col gap-0.5 p-3 pt-4">
         {NAV.map((item) => {
           const { href, label, icon } = item;
           const badge = "badge" in item ? item.badge : undefined;
