@@ -285,7 +285,7 @@ export default function MediaplanDetailPage() {
         </div>
       )}
 
-      <section className="grid gap-6 rounded-lg border-t-4 border-violet-500 bg-white p-6 lg:grid-cols-2">
+      <section className="grid gap-6 rounded-lg border-t-4 border-[#8026FE] bg-white p-6 lg:grid-cols-2">
         <div>
           <h3 className="text-sm font-semibold text-zinc-700">Kundeninformationen</h3>
           <dl className="mt-3 space-y-2 text-sm">
@@ -316,7 +316,7 @@ export default function MediaplanDetailPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border-t-4 border-violet-500 bg-white p-5">
+      <section className="rounded-lg border-t-4 border-[#8026FE] bg-white p-5">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-zinc-950">
             Bestätigte Positionen ({positions.length})
@@ -394,7 +394,7 @@ export default function MediaplanDetailPage() {
         </button>
       </section>
 
-      <section className="grid gap-4 rounded-lg border-t-4 border-violet-500 bg-white p-5 sm:grid-cols-2">
+      <section className="grid gap-4 rounded-lg border-t-4 border-[#8026FE] bg-white p-5 sm:grid-cols-2">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
           <h3 className="text-sm font-semibold text-zinc-700">Einmalige Positionen</h3>
           <dl className="mt-3 space-y-1 text-sm">
@@ -414,7 +414,7 @@ export default function MediaplanDetailPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border-t-4 border-violet-500 bg-white p-6">
+      <section className="rounded-lg border-t-4 border-[#8026FE] bg-white p-6">
         <h3 className="text-lg font-semibold text-zinc-950">
           Notizen &amp; Kommentare zum Mediaplan ({COMMENTS.length})
         </h3>

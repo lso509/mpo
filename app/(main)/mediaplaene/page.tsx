@@ -166,7 +166,7 @@ export default function MediaplaenePage() {
         </div>
       )}
 
-      <section className="rounded-lg border-t-4 border-violet-500 bg-white p-5">
+      <section className="rounded-lg border-t-4 border-[#8026FE] bg-white p-5">
         {loading ? (
           <p className="text-zinc-500">Mediapläne werden geladen…</p>
         ) : (

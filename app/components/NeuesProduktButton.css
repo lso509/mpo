@@ -2,13 +2,13 @@
   position: relative;
   padding: 8px 16px;
   min-height: 40px;
-  background: #8b5cf6;
+  background: #8026FE;
   font-size: 1rem;
   font-weight: 500;
   color: #fff;
-  border: 3px solid #8b5cf6;
+  border: 3px solid #8026FE;
   border-radius: 8px;
-  box-shadow: 0 0 0 #8b5cf68c;
+  box-shadow: 0 0 0 #8026FE8c;
   transition: all 0.3s ease-in-out;
   cursor: pointer;
   overflow: visible;
@@ -17,8 +17,8 @@
 
 .neues-produkt-btn:hover {
   background: transparent;
-  color: #8b5cf6;
-  box-shadow: 0 0 25px #8b5cf68c;
+  color: #8026FE;
+  box-shadow: 0 0 25px #8026FE8c;
 }
 
 /* Sterne standardmäßig unsichtbar, außerhalb des Klickbereichs (überdecken Text nicht) */
@@ -47,7 +47,7 @@
   left: 20%;
   width: 25px;
   height: auto;
-  filter: drop-shadow(0 0 0 #8b5cf6);
+  filter: drop-shadow(0 0 0 #8026FE);
   z-index: 0;
   transition: all 1s cubic-bezier(0.05, 0.83, 0.43, 0.96);
 }
@@ -58,7 +58,7 @@
   left: 45%;
   width: 15px;
   height: auto;
-  filter: drop-shadow(0 0 0 #8b5cf6);
+  filter: drop-shadow(0 0 0 #8026FE);
   z-index: 0;
   transition: all 1s cubic-bezier(0, 0.4, 0, 1.01);
 }
@@ -69,7 +69,7 @@
   left: 40%;
   width: 5px;
   height: auto;
-  filter: drop-shadow(0 0 0 #8b5cf6);
+  filter: drop-shadow(0 0 0 #8026FE);
   z-index: 0;
   transition: all 1s cubic-bezier(0, 0.4, 0, 1.01);
 }
@@ -80,7 +80,7 @@
   left: 40%;
   width: 8px;
   height: auto;
-  filter: drop-shadow(0 0 0 #8b5cf6);
+  filter: drop-shadow(0 0 0 #8026FE);
   z-index: 0;
   transition: all 0.8s cubic-bezier(0, 0.4, 0, 1.01);
 }
@@ -91,7 +91,7 @@
   left: 45%;
   width: 15px;
   height: auto;
-  filter: drop-shadow(0 0 0 #8b5cf6);
+  filter: drop-shadow(0 0 0 #8026FE);
   z-index: 0;
   transition: all 0.6s cubic-bezier(0, 0.4, 0, 1.01);
 }
@@ -102,7 +102,7 @@
   left: 50%;
   width: 5px;
   height: auto;
-  filter: drop-shadow(0 0 0 #8b5cf6);
+  filter: drop-shadow(0 0 0 #8026FE);
   z-index: 0;
   transition: all 0.8s ease;
 }
@@ -112,7 +112,7 @@
   left: -30%;
   width: 25px;
   height: auto;
-  filter: drop-shadow(0 0 10px #8b5cf6);
+  filter: drop-shadow(0 0 10px #8026FE);
   z-index: 2;
 }
 
@@ -121,7 +121,7 @@
   left: 10%;
   width: 15px;
   height: auto;
-  filter: drop-shadow(0 0 10px #8b5cf6);
+  filter: drop-shadow(0 0 10px #8026FE);
   z-index: 2;
 }
 
@@ -130,7 +130,7 @@
   left: 25%;
   width: 5px;
   height: auto;
-  filter: drop-shadow(0 0 10px #8b5cf6);
+  filter: drop-shadow(0 0 10px #8026FE);
   z-index: 2;
 }
 
@@ -139,7 +139,7 @@
   left: 80%;
   width: 8px;
   height: auto;
-  filter: drop-shadow(0 0 10px #8b5cf6);
+  filter: drop-shadow(0 0 10px #8026FE);
   z-index: 2;
 }
 
@@ -148,7 +148,7 @@
   left: 115%;
   width: 15px;
   height: auto;
-  filter: drop-shadow(0 0 10px #8b5cf6);
+  filter: drop-shadow(0 0 10px #8026FE);
   z-index: 2;
 }
 
@@ -157,6 +157,6 @@
   left: 60%;
   width: 5px;
   height: auto;
-  filter: drop-shadow(0 0 10px #8b5cf6);
+  filter: drop-shadow(0 0 10px #8026FE);
   z-index: 2;
 }

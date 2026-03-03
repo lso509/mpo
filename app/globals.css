@@ -87,3 +87,45 @@ select option {
     background: #0a0a0a;
   }
 }
+
+/* Switch (z. B. Automatisierungen ein/aus) */
+.switch {
+  --button-width: 2.25em;
+  --button-height: 1.25em;
+  --toggle-diameter: 1em;
+  --button-toggle-offset: calc((var(--button-height) - var(--toggle-diameter)) / 2);
+  --color-grey: #cccccc;
+  --color-green: #8026FE;
+}
+.switch .slider {
+  display: inline-block;
+  width: var(--button-width);
+  height: var(--button-height);
+  background-color: var(--color-grey);
+  border-radius: calc(var(--button-height) / 2);
+  position: relative;
+  transition: background-color 0.2s ease-out;
+}
+.switch .slider::after {
+  content: "";
+  display: inline-block;
+  width: var(--toggle-diameter);
+  height: var(--toggle-diameter);
+  background-color: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: var(--button-toggle-offset);
+  left: 0;
+  transform: translateX(var(--button-toggle-offset));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease-out;
+}
+.switch input[type="checkbox"]:checked + .slider {
+  background-color: var(--color-green);
+}
+.switch input[type="checkbox"]:checked + .slider::after {
+  transform: translateX(calc(var(--button-width) - var(--toggle-diameter) - var(--button-toggle-offset)));
+}
+.switch input[type="checkbox"] {
+  display: none;
+}

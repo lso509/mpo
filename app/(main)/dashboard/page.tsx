@@ -136,7 +136,7 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-lg border-t-4 border-violet-500 bg-white p-5">
+    <section className="rounded-lg border-t-4 border-[#8026FE] bg-white p-5">
       <header className="mb-4 flex items-end justify-between gap-4">
         <div className="flex items-baseline gap-3">
           <h2 className="text-lg font-semibold tracking-tight text-zinc-950">
@@ -204,7 +204,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <section className="rounded-lg border-t-4 border-violet-500 bg-white p-5">
+        <section className="rounded-lg border-t-4 border-[#8026FE] bg-white p-5">
           <div className="flex items-center gap-2 text-sm font-medium text-zinc-700">
             <span aria-hidden>🔽</span>
             Nach Mitarbeiter filtern

@@ -2,7 +2,7 @@
 
 import "./NeuesProduktButton.css";
 
-const starFill = "#8b5cf6";
+const starFill = "#8026FE";
 
 function StarIcon({ className }: { className?: string }) {
   return (

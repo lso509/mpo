@@ -57,6 +57,8 @@ export type Product = {
   mindestbudget: number | null;
   empfohlenesMedienbudget: string | null;
   buchungsvoraussetzung: string | null;
+  /** Automatisierungen (Task-Vorlagen) für dieses Produkt aktiv */
+  automatisierungAktiv?: boolean;
 };
 
 export type TaskVorlage = {
@@ -130,6 +132,7 @@ function mapRow(row: Record<string, unknown>): Product {
     mindestbudget: row.mindestbudget != null ? Number(row.mindestbudget) : (row.min_budget != null ? Number(row.min_budget) : null),
     empfohlenesMedienbudget: row.empfohlenes_medienbudget != null ? String(row.empfohlenes_medienbudget) : null,
     buchungsvoraussetzung: row.buchungsvoraussetzung != null ? String(row.buchungsvoraussetzung) : null,
+    automatisierungAktiv: row.automatisierung_aktiv !== false,
   };
 }
 
@@ -258,6 +261,7 @@ function productToRow(p: Partial<Product>): Record<string, unknown> {
     mindestbudget: p.mindestbudget ?? null,
     empfohlenes_medienbudget: p.empfohlenesMedienbudget ?? null,
     buchungsvoraussetzung: p.buchungsvoraussetzung ?? null,
+    automatisierung_aktiv: p.automatisierungAktiv !== false,
     spec: p.platzierung ?? null,
     placement: p.platzierung ?? null,
     size: p.creativeGroesse ?? null,
@@ -348,6 +352,7 @@ const emptyProduct: Partial<Product> = {
   mindestbudget: null,
   empfohlenesMedienbudget: null,
   buchungsvoraussetzung: null,
+  automatisierungAktiv: true,
 };
 
 function matchesSearch(p: Product, q: string): boolean {
@@ -559,12 +564,12 @@ export default function ProduktePage() {
     setEditingProduct((prev) => (prev ? { ...prev, [key]: value } : null));
   };
 
-  const saveProduktTaskVorlagen = async (produktId: string) => {
+  const saveProduktTaskVorlagen = async (produktId: string, tasksToSave: ProduktTaskConfig[]) => {
     const supabase = createClient();
     await supabase.from("produkt_task_vorlagen").delete().eq("produkt_id", produktId);
-    if (selectedTasks.length > 0) {
+    if (tasksToSave.length > 0) {
       await supabase.from("produkt_task_vorlagen").insert(
-        selectedTasks.map((t) => ({
+        tasksToSave.map((t) => ({
           produkt_id: produktId,
           task_vorlage_id: t.task_vorlage_id,
           tage: t.tage,
@@ -579,7 +584,8 @@ export default function ProduktePage() {
     if (!editingProduct) return;
     setSaving(true);
     const supabase = createClient();
-    const row = productToRow(editingProduct);
+    const row = productToRow(editingProduct) as Record<string, unknown>;
+    row.automatisierung_aktiv = selectedTasks.length > 0;
 
     if (productModal === "new" || asNewVariant) {
       // Fuzzy-Check: ähnliche Produkte?
@@ -594,7 +600,7 @@ export default function ProduktePage() {
             supabase.from("produkte").insert(row).select("id").single().then(({ data: inserted, error: err }) => {
               if (err) setError(err.message);
               else if (inserted?.id) {
-                saveProduktTaskVorlagen(inserted.id).then(() => {
+                saveProduktTaskVorlagen(inserted.id, selectedTasks).then(() => {
                   supabase.from("produkte").select("*").then(({ data }) => {
                     if (data) setProducts(data.map(mapRow));
                     closeModal();
@@ -612,7 +618,7 @@ export default function ProduktePage() {
       const { data: inserted, error: err } = await supabase.from("produkte").insert(row).select("id").single();
       if (err) setError(err.message);
       else if (inserted?.id) {
-        await saveProduktTaskVorlagen(inserted.id);
+        await saveProduktTaskVorlagen(inserted.id, selectedTasks);
         const { data } = await supabase.from("produkte").select("*");
         if (data) setProducts(data.map(mapRow));
         closeModal();
@@ -623,7 +629,7 @@ export default function ProduktePage() {
       const { data: inserted, error: err } = await supabase.from("produkte").insert(row).select("id").single();
       if (err) setError(err.message);
       else if (inserted?.id) {
-        await saveProduktTaskVorlagen(inserted.id);
+        await saveProduktTaskVorlagen(inserted.id, selectedTasks);
         const { data } = await supabase.from("produkte").select("*");
         if (data) setProducts(data.map(mapRow));
         closeModal();
@@ -660,7 +666,7 @@ export default function ProduktePage() {
       const { error: err } = await supabase.from("produkte").update(row).eq("id", productModal);
       if (err) setError(err.message);
       else {
-        await saveProduktTaskVorlagen(productModal);
+        await saveProduktTaskVorlagen(productModal, selectedTasks);
         const { data } = await supabase.from("produkte").select("*");
         if (data) setProducts(data.map(mapRow));
         closeModal();
@@ -1090,7 +1096,7 @@ export default function ProduktePage() {
                     : [...filtered].sort((a, b) => (displayName(a) || "").localeCompare(displayName(b) || "", "de"));
                 if (items.length === 0) return null;
                 return (
-                  <section key={cat} className="rounded-lg border-t-4 border-violet-500 bg-white dark:bg-zinc-800 p-5">
+                  <section key={cat} className="rounded-lg border-t-4 border-[#8026FE] bg-white dark:bg-zinc-800 p-5">
                     <h2 className="mb-4 text-sm font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
                       {categoryLabel(cat)}
                     </h2>
@@ -1600,28 +1606,30 @@ export default function ProduktePage() {
                                 : "border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100";
                               return (
                                 <div key={t.id} className="flex flex-col gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedTasks((prev) => {
-                                        if (prev.some((c) => c.task_vorlage_id === t.id)) {
-                                          return prev.filter((c) => c.task_vorlage_id !== t.id);
-                                        }
-                                        const def = getDefaultTaskConfig(t.title);
-                                        return [...prev, { task_vorlage_id: t.id, ...def }];
-                                      });
-                                    }}
-                                    className={`rounded-lg border px-3 py-2.5 text-left text-sm transition ${
-                                      selected
-                                        ? "border-violet-500 bg-violet-50 dark:bg-violet-900/40 text-violet-900 dark:text-violet-200 ring-1 ring-violet-500/30"
-                                        : "border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-zinc-300 dark:hover:border-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-700"
-                                    }`}
-                                  >
-                                    <span className="font-medium">{t.title}</span>
-                                    {t.description && (
-                                      <span className="mt-0.5 block text-xs opacity-90">{t.description}</span>
-                                    )}
-                                  </button>
+                                  <div className="flex items-center gap-3 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800/80 px-3 py-2.5">
+                                    <label className="switch shrink-0 cursor-pointer" aria-label={`${t.title} ${selected ? "deaktivieren" : "aktivieren"}`}>
+                                      <input
+                                        type="checkbox"
+                                        checked={selected}
+                                        onChange={() => {
+                                          setSelectedTasks((prev) => {
+                                            if (prev.some((c) => c.task_vorlage_id === t.id)) {
+                                              return prev.filter((c) => c.task_vorlage_id !== t.id);
+                                            }
+                                            const def = getDefaultTaskConfig(t.title);
+                                            return [...prev, { task_vorlage_id: t.id, ...def }];
+                                          });
+                                        }}
+                                      />
+                                      <span className="slider" />
+                                    </label>
+                                    <div className="min-w-0 flex-1">
+                                      <span className="font-medium text-zinc-900 dark:text-zinc-100">{t.title}</span>
+                                      {t.description && (
+                                        <span className="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">{t.description}</span>
+                                      )}
+                                    </div>
+                                  </div>
                                   {selected && cfg && (
                                     <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-zinc-50/50 dark:bg-zinc-800/50 pl-4 pr-3 py-2">
                                       <span className="text-zinc-600 dark:text-zinc-400">[</span>
