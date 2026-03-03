@@ -823,7 +823,7 @@ export default function ProduktePage() {
                 const items = filteredProducts.filter((p) => p.category === cat);
                 if (items.length === 0) return null;
                 return (
-                  <section key={cat} className="rounded-lg bg-white p-5">
+                  <section key={cat} className="rounded-lg border-t-4 border-violet-500 bg-white p-5">
                     <h2 className="mb-4 text-sm font-semibold tracking-wide text-zinc-500">
                       {categoryLabel(cat)}
                     </h2>
