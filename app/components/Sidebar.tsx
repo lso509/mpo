@@ -12,13 +12,13 @@ export function SidebarLogo() {
   return (
     <Link
       href="/dashboard"
-      className="flex min-h-[160px] shrink-0 items-start px-3 pt-[30px] pb-[30px] hover:opacity-90"
+      className="flex h-[130px] shrink-0 items-start px-3 pt-[30px] hover:opacity-90"
       aria-label="Start"
     >
       <img
         src="/coagmpa-new.svg"
         alt="CO AG MP A"
-        className="h-[100px] w-auto max-w-[240px] object-contain object-left invert"
+        className="h-[100px] w-auto max-w-[240px] object-contain object-left"
       />
     </Link>
   );
@@ -107,7 +107,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="sticky top-0 flex h-screen w-64 flex-col bg-zinc-900 shadow-[2px_0_20px_rgba(0,0,0,0.2),4px_0_56px_rgba(0,0,0,0.12)]">
+    <aside className="sticky top-0 flex h-screen w-64 flex-col border-r border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
       <SidebarLogo />
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-3 pt-4">
         {NAV.map((item) => {
@@ -121,11 +121,11 @@ export function Sidebar() {
               href={href}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                 active
-                  ? "bg-violet-900/40 text-violet-200"
-                  : "text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+                  ? "bg-violet-100 dark:bg-violet-900/40 text-violet-900 dark:text-violet-200"
+                  : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
               }`}
             >
-              <span className={active ? "text-violet-400" : "text-zinc-400"}>{icon}</span>
+              <span className={active ? "text-violet-600 dark:text-violet-400" : "text-zinc-500 dark:text-zinc-400"}>{icon}</span>
               <span className="flex-1">{label}</span>
               {badge != null && badge > 0 && (
                 <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-semibold text-white">
@@ -136,24 +136,24 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="mt-auto shrink-0 bg-zinc-900 p-3">
+      <div className="mt-auto shrink-0 bg-white dark:bg-zinc-900 p-3">
         <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-900/50 text-sm font-semibold text-violet-200">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/50 text-sm font-semibold text-violet-900 dark:text-violet-200">
             {user ? initials(user.email ?? "") : "—"}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-zinc-100">
+            <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
               {user?.user_metadata?.full_name ?? user?.email ?? "Gast"}
             </p>
             {user?.email && (
-              <p className="truncate text-xs text-zinc-400">{user.email}</p>
+              <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{user.email}</p>
             )}
           </div>
         </div>
         <button
           type="button"
           onClick={handleSignOut}
-          className="mt-2 w-full rounded-lg border border-zinc-600 px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-800"
+          className="mt-2 w-full rounded-lg border border-zinc-200 dark:border-zinc-600 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
         >
           Abmelden
         </button>
