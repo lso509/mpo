@@ -1,5 +1,7 @@
 "use client";
 
+import { nochNichtImplementiert } from "@/lib/not-implemented";
+
 import { useState } from "react";
 import Link from "next/link";
 
@@ -182,7 +184,8 @@ export default function EmailVorlagenPage() {
                   Abbrechen
                 </button>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={nochNichtImplementiert}
                   className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
                 >
                   Erstellen

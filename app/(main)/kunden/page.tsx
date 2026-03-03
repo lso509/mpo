@@ -1,5 +1,7 @@
 "use client";
 
+import { nochNichtImplementiert } from "@/lib/not-implemented";
+
 import { useState } from "react";
 import Link from "next/link";
 
@@ -71,12 +73,14 @@ export default function KundenPage() {
       <div className="flex gap-2 border-b border-zinc-200">
         <button
           type="button"
+          onClick={nochNichtImplementiert}
           className="border-b-2 border-violet-600 pb-3 pr-4 text-sm font-medium text-violet-600"
         >
           Übersicht
         </button>
         <button
           type="button"
+          onClick={nochNichtImplementiert}
           className="border-b-2 border-transparent pb-3 pr-4 text-sm font-medium text-zinc-600 hover:text-zinc-900"
         >
           Reporting

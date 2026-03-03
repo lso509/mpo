@@ -13,7 +13,7 @@ export default function MainLayout({
       <Sidebar />
       <div className="flex flex-1 flex-col min-w-0">
         <Header />
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main className="flex-1 overflow-auto bg-zinc-100 p-6">{children}</main>
       </div>
     </div>
   );

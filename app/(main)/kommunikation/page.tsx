@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { nochNichtImplementiert } from "@/lib/not-implemented";
 
 const STATUS_BADGES = [
   { id: "ungelesen", label: "Ungelesen", count: 2 },
@@ -100,6 +101,7 @@ export default function KommunikationPage() {
       <div className="flex gap-2">
         <button
           type="button"
+          onClick={nochNichtImplementiert}
           className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
         >
           Filter &gt;

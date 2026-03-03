@@ -1,5 +1,7 @@
 "use client";
 
+import { nochNichtImplementiert } from "@/lib/not-implemented";
+
 export function Header() {
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-zinc-200 bg-white px-6">
@@ -13,6 +15,7 @@ export function Header() {
       <div className="flex items-center gap-2">
         <button
           type="button"
+          onClick={nochNichtImplementiert}
           className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
           title="Benachrichtigungen"
         >
@@ -25,6 +28,7 @@ export function Header() {
         </button>
         <button
           type="button"
+          onClick={nochNichtImplementiert}
           className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
           title="Profil"
         >

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { nochNichtImplementiert } from "@/lib/not-implemented";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard" },
@@ -121,12 +122,14 @@ export default function FinanzenPage() {
         <div className="flex gap-2">
           <button
             type="button"
+            onClick={nochNichtImplementiert}
             className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
             DATEV Export
           </button>
           <button
             type="button"
+            onClick={nochNichtImplementiert}
             className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
             Excel Export
@@ -172,6 +175,7 @@ export default function FinanzenPage() {
                 </h2>
                 <button
                   type="button"
+                  onClick={nochNichtImplementiert}
                   className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
                 >
                   + Rechnung erstellen
@@ -244,6 +248,7 @@ export default function FinanzenPage() {
           </h2>
           <button
             type="button"
+            onClick={nochNichtImplementiert}
             className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
           >
             + Neue Rechnung

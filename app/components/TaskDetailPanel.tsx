@@ -1,5 +1,7 @@
 "use client";
 
+import { nochNichtImplementiert } from "@/lib/not-implemented";
+
 import { useState } from "react";
 
 type TaskStatus = "Offen" | "Erledigt" | "Nicht relevant";
@@ -116,6 +118,7 @@ export function TaskDetailPanel({
               </p>
               <button
                 type="button"
+                onClick={nochNichtImplementiert}
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-700"
               >
                 ✉ E-Mail Vorlage öffnen
@@ -187,6 +190,7 @@ export function TaskDetailPanel({
               <p className="text-xs font-medium text-zinc-500">Dokumente</p>
               <button
                 type="button"
+                onClick={nochNichtImplementiert}
                 className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-zinc-200 bg-zinc-50 py-4 text-sm font-medium text-zinc-600 hover:border-violet-300 hover:bg-violet-50/50 hover:text-violet-800"
               >
                 ↑ Dokument hochladen

@@ -1,5 +1,6 @@
 "use client";
 
+import { nochNichtImplementiert } from "@/lib/not-implemented";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
@@ -89,6 +90,7 @@ export default function MediaplanDetailPage() {
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
+            onClick={nochNichtImplementiert}
             className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
           >
             Creative-Übersicht senden (8)
@@ -129,6 +131,7 @@ export default function MediaplanDetailPage() {
           </div>
           <button
             type="button"
+            onClick={nochNichtImplementiert}
             className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
             PDF Export (A3)
@@ -207,7 +210,11 @@ export default function MediaplanDetailPage() {
             Bestätigte Positionen ({POSITIONS.length})
           </h2>
           <div className="flex gap-2">
-            <input type="checkbox" className="rounded" aria-label="Alle auswählen" />
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-0 border-none shadow-none outline-none ring-0 focus:ring-2 focus:ring-violet-500 focus:ring-offset-0"
+              aria-label="Alle auswählen"
+            />
             <button
               type="button"
               className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
@@ -223,7 +230,10 @@ export default function MediaplanDetailPage() {
               className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="flex items-start gap-3">
-                <input type="checkbox" className="mt-1 rounded" />
+                <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 shrink-0 rounded border-0 border-none shadow-none outline-none ring-0 focus:ring-2 focus:ring-violet-500 focus:ring-offset-0"
+              />
                 <span className="inline-block h-3 w-3 shrink-0 rounded-full bg-emerald-500" />
                 <div>
                   <p className="font-medium text-zinc-950">{pos.title}</p>
@@ -249,6 +259,7 @@ export default function MediaplanDetailPage() {
               </div>
               <button
                 type="button"
+                onClick={nochNichtImplementiert}
                 className="rounded p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
                 aria-label="Löschen"
               >
@@ -259,6 +270,7 @@ export default function MediaplanDetailPage() {
         </ul>
         <button
           type="button"
+          onClick={nochNichtImplementiert}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-200 py-4 text-sm font-medium text-zinc-600 hover:border-violet-300 hover:bg-violet-50/30 hover:text-violet-700"
         >
           + Position hinzufügen
@@ -333,18 +345,21 @@ export default function MediaplanDetailPage() {
       <footer className="flex flex-wrap gap-3 border-t border-zinc-200 pt-6">
         <button
           type="button"
+          onClick={nochNichtImplementiert}
           className="rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
         >
           📄 Als Entwurf speichern
         </button>
         <button
           type="button"
+          onClick={nochNichtImplementiert}
           className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
         >
           ✓ Plan aktivieren
         </button>
         <button
           type="button"
+          onClick={nochNichtImplementiert}
           className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
         >
           ↓ PDF exportieren

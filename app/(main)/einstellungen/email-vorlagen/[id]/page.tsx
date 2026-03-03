@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { nochNichtImplementiert } from "@/lib/not-implemented";
 
 const PLACEHOLDERS = [
   "{{campaign_name}}",
@@ -53,6 +54,7 @@ Mit freundlichen Grüßen
             <button
               key={p}
               type="button"
+              onClick={nochNichtImplementiert}
               className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-900 hover:bg-violet-100"
             >
               {p}
@@ -64,12 +66,14 @@ Mit freundlichen Grüßen
       <div className="flex gap-3">
         <button
           type="button"
+          onClick={nochNichtImplementiert}
           className="rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
         >
           Abbrechen
         </button>
         <button
           type="button"
+          onClick={nochNichtImplementiert}
           className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
         >
           Speichern

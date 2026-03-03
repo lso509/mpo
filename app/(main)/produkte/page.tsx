@@ -42,6 +42,7 @@ export type Product = {
   creativeGroesse: string | null;
   creativeTyp: string | null;
   creativeDeadlineTage: number | null;
+  creativeDeadlineDate: string | null;
   laufzeitProEinheit: string | null;
   preisBruttoChf: number | null;
   preisNettoChf: number | null;
@@ -49,6 +50,13 @@ export type Product = {
   mindestbudget: number | null;
   empfohlenesMedienbudget: string | null;
   buchungsvoraussetzung: string | null;
+};
+
+export type TaskVorlage = {
+  id: string;
+  category: string;
+  title: string;
+  description: string | null;
 };
 
 function mapRow(row: Record<string, unknown>): Product {
@@ -72,6 +80,7 @@ function mapRow(row: Record<string, unknown>): Product {
     creativeGroesse: row.creative_groesse != null ? String(row.creative_groesse) : (row.size != null ? String(row.size) : null),
     creativeTyp: row.creative_typ != null ? String(row.creative_typ) : null,
     creativeDeadlineTage: row.creative_deadline_tage != null ? Number(row.creative_deadline_tage) : null,
+    creativeDeadlineDate: row.creative_deadline_date != null ? String(row.creative_deadline_date) : null,
     laufzeitProEinheit: row.laufzeit_pro_einheit != null ? String(row.laufzeit_pro_einheit) : (row.duration != null ? String(row.duration) : null),
     preisBruttoChf: row.preis_brutto_chf != null ? Number(row.preis_brutto_chf) : null,
     preisNettoChf: row.preis_netto_chf != null ? Number(row.preis_netto_chf) : (row.net_price != null ? Number(row.net_price) : null),
@@ -197,6 +206,7 @@ function productToRow(p: Partial<Product>): Record<string, unknown> {
     creative_groesse: p.creativeGroesse ?? null,
     creative_typ: p.creativeTyp ?? null,
     creative_deadline_tage: p.creativeDeadlineTage ?? null,
+    creative_deadline_date: p.creativeDeadlineDate ?? null,
     laufzeit_pro_einheit: p.laufzeitProEinheit ?? null,
     preis_brutto_chf: p.preisBruttoChf ?? null,
     preis_netto_chf: p.preisNettoChf ?? null,
@@ -230,6 +240,7 @@ const emptyProduct: Partial<Product> = {
   creativeGroesse: null,
   creativeTyp: null,
   creativeDeadlineTage: null,
+  creativeDeadlineDate: null,
   laufzeitProEinheit: LAUFZEIT_OPTIONS[0],
   preisBruttoChf: null,
   preisNettoChf: null,
@@ -278,6 +289,8 @@ export default function ProduktePage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [taskVorlagen, setTaskVorlagen] = useState<TaskVorlage[]>([]);
+  const [selectedTaskVorlageIds, setSelectedTaskVorlageIds] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleFilter = (
@@ -310,6 +323,24 @@ export default function ProduktePage() {
     load();
   }, []);
 
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.from("task_vorlagen").select("id, category, title, description").order("category").order("title").then(({ data }) => {
+      if (data) setTaskVorlagen(data as TaskVorlage[]);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (productModal == null || productModal === "new") {
+      setSelectedTaskVorlageIds([]);
+      return;
+    }
+    const supabase = createClient();
+    supabase.from("produkt_task_vorlagen").select("task_vorlage_id").eq("produkt_id", productModal).then(({ data }) => {
+      setSelectedTaskVorlageIds((data ?? []).map((r) => r.task_vorlage_id));
+    });
+  }, [productModal]);
+
   const openModal = (id: string | "new") => {
     if (id === "new") {
       setEditingProduct({ ...emptyProduct });
@@ -329,23 +360,49 @@ export default function ProduktePage() {
     setEditingProduct((prev) => (prev ? { ...prev, [key]: value } : null));
   };
 
+  const saveProduktTaskVorlagen = async (produktId: string) => {
+    const supabase = createClient();
+    await supabase.from("produkt_task_vorlagen").delete().eq("produkt_id", produktId);
+    if (selectedTaskVorlageIds.length > 0) {
+      await supabase.from("produkt_task_vorlagen").insert(
+        selectedTaskVorlageIds.map((task_vorlage_id) => ({ produkt_id: produktId, task_vorlage_id }))
+      );
+    }
+  };
+
   const handleSave = async (asNewVariant: boolean, overwrite: boolean) => {
     if (!editingProduct) return;
     setSaving(true);
     const supabase = createClient();
     const row = productToRow(editingProduct);
+
     if (productModal === "new" || asNewVariant) {
-      const { error: err } = await supabase.from("produkte").insert(row);
+      // "Als neue Produktvariante speichern": Änderungen als neues Produkt speichern
+      const { data: inserted, error: err } = await supabase.from("produkte").insert(row).select("id").single();
       if (err) setError(err.message);
-      else {
+      else if (inserted?.id) {
+        await saveProduktTaskVorlagen(inserted.id);
         const { data } = await supabase.from("produkte").select("*");
         if (data) setProducts(data.map(mapRow));
         closeModal();
       }
-    } else if (typeof productModal === "string" && !overwrite) {
+    } else if (typeof productModal === "string" && overwrite) {
+      // "Produkt überschreiben und alte Variante archivieren": aktuelle Version archivieren, dann neue Version anlegen
+      await supabase.from("produkte").update({ archived: true }).eq("id", productModal);
+      const { data: inserted, error: err } = await supabase.from("produkte").insert(row).select("id").single();
+      if (err) setError(err.message);
+      else if (inserted?.id) {
+        await saveProduktTaskVorlagen(inserted.id);
+        const { data } = await supabase.from("produkte").select("*");
+        if (data) setProducts(data.map(mapRow));
+        closeModal();
+      }
+    } else if (typeof productModal === "string") {
+      // "Speichern": vorhandenes Produkt mit Änderungen überschreiben
       const { error: err } = await supabase.from("produkte").update(row).eq("id", productModal);
       if (err) setError(err.message);
       else {
+        await saveProduktTaskVorlagen(productModal);
         const { data } = await supabase.from("produkte").select("*");
         if (data) setProducts(data.map(mapRow));
         closeModal();
@@ -528,7 +585,7 @@ export default function ProduktePage() {
     p.mindestbudget != null ? `CHF ${p.mindestbudget}` : "—";
 
   return (
-    <div className="flex gap-6">
+    <div className="flex gap-6 bg-zinc-100 p-6">
       <aside className="w-64 shrink-0 space-y-4">
         <h3 className="text-sm font-semibold text-zinc-700">Filter</h3>
         <div>
@@ -541,7 +598,7 @@ export default function ProduktePage() {
                   id={`kategorie-${c}`}
                   checked={filterKategorien.includes(c)}
                   onChange={() => toggleFilter(setFilterKategorien, c)}
-                  className="h-4 w-4 rounded border-0 border-none shadow-none outline-none ring-0 focus:ring-2 focus:ring-violet-500 focus:ring-offset-0"
+                  className="h-4 w-4 rounded border-0 border-none bg-white shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)]"
                 />
                   <label htmlFor={`kategorie-${c}`} className="cursor-pointer text-sm text-zinc-700">
                     {categoryLabel(c)}
@@ -562,7 +619,7 @@ export default function ProduktePage() {
                     id={`verlag-${v}`}
                     checked={filterVerlage.includes(v)}
                     onChange={() => toggleFilter(setFilterVerlage, v)}
-                    className="h-4 w-4 rounded border-0 border-none shadow-none outline-none ring-0 focus:ring-2 focus:ring-violet-500 focus:ring-offset-0"
+                    className="h-4 w-4 rounded border-0 border-none bg-white shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)]"
                   />
                   <label htmlFor={`verlag-${v}`} className="cursor-pointer text-sm text-zinc-700">
                     {v}
@@ -584,7 +641,7 @@ export default function ProduktePage() {
                     id={`kanal-${k}`}
                     checked={filterKanal.includes(k)}
                     onChange={() => toggleFilter(setFilterKanal, k)}
-                    className="h-4 w-4 rounded border-0 border-none shadow-none outline-none ring-0 focus:ring-2 focus:ring-violet-500 focus:ring-offset-0"
+                    className="h-4 w-4 rounded border-0 border-none bg-white shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)]"
                   />
                   <label htmlFor={`kanal-${k}`} className="cursor-pointer text-sm text-zinc-700">
                     {k}
@@ -606,7 +663,7 @@ export default function ProduktePage() {
                     id={`ziel-${z}`}
                     checked={filterZielEignung.includes(z)}
                     onChange={() => toggleFilter(setFilterZielEignung, z)}
-                    className="h-4 w-4 rounded border-0 border-none shadow-none outline-none ring-0 focus:ring-2 focus:ring-violet-500 focus:ring-offset-0"
+                    className="h-4 w-4 rounded border-0 border-none bg-white shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)]"
                   />
                   <label htmlFor={`ziel-${z}`} className="cursor-pointer text-sm text-zinc-700">
                     {z}
@@ -628,7 +685,7 @@ export default function ProduktePage() {
                     id={`laufzeit-${l}`}
                     checked={filterLaufzeit.includes(l)}
                     onChange={() => toggleFilter(setFilterLaufzeit, l)}
-                    className="h-4 w-4 rounded border-0 border-none shadow-none outline-none ring-0 focus:ring-2 focus:ring-violet-500 focus:ring-offset-0"
+                    className="h-4 w-4 rounded border-0 border-none bg-white shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)]"
                   />
                   <label htmlFor={`laufzeit-${l}`} className="cursor-pointer text-sm text-zinc-700">
                     {l}
@@ -706,7 +763,7 @@ export default function ProduktePage() {
         </div>
       </aside>
 
-      <div className="min-w-0 flex-1 space-y-6">
+      <div className="min-w-0 flex-1">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <header>
             <h1 className="text-3xl font-semibold tracking-tight text-zinc-950">
@@ -752,7 +809,7 @@ export default function ProduktePage() {
         {loading ? (
           <p className="text-zinc-500">Produkte werden geladen…</p>
         ) : (
-          <div className="space-y-6">
+          <div className="mt-6 space-y-6">
             {categoriesWithProducts.length === 0 ? (
               <p className="text-zinc-500">
                 {visibleProducts.length === 0
@@ -766,15 +823,15 @@ export default function ProduktePage() {
                 const items = filteredProducts.filter((p) => p.category === cat);
                 if (items.length === 0) return null;
                 return (
-                  <section key={cat}>
-                    <h2 className="mb-3 text-sm font-semibold tracking-wide text-zinc-500">
+                  <section key={cat} className="rounded-lg bg-white p-5">
+                    <h2 className="mb-4 text-sm font-semibold tracking-wide text-zinc-500">
                       {categoryLabel(cat)}
                     </h2>
                     <div className="grid gap-4 sm:grid-cols-2">
                       {items.map((p) => (
                         <article
                           key={p.id}
-                          className="rounded-2xl border border-zinc-200 bg-white p-4"
+                          className="rounded-lg border border-zinc-200 bg-white p-4"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <h3 className="font-semibold text-zinc-950 min-w-0">
@@ -1155,25 +1212,16 @@ export default function ProduktePage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-zinc-500">
-                      Creative Deadline (Tage vor Schaltung)
+                      Creative Deadline
                     </label>
                     <input
-                      type="number"
-                      min={0}
-                      value={editingProduct.creativeDeadlineTage ?? ""}
+                      type="date"
+                      value={editingProduct.creativeDeadlineDate ?? ""}
                       onChange={(e) =>
-                        setField(
-                          "creativeDeadlineTage",
-                          e.target.value === ""
-                            ? null
-                            : parseInt(e.target.value, 10)
-                        )
+                        setField("creativeDeadlineDate", e.target.value || null)
                       }
                       className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
                     />
-                    <p className="mt-1 text-xs text-zinc-400">
-                      Anzahl Tage für automatische Erinnerungen
-                    </p>
                   </div>
                 </div>
               </section>
@@ -1313,6 +1361,51 @@ export default function ProduktePage() {
                   rows={3}
                   className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
                 />
+              </section>
+
+              {/* Automatische Tasks für dieses Produkt */}
+              <section>
+                <h4 className="mb-1 text-sm font-semibold text-zinc-800">
+                  Automatische Tasks für dieses Produkt
+                </h4>
+                <p className="mb-4 text-xs text-zinc-500">
+                  Wählen Sie Tasks aus, die beim Hinzufügen dieses Produkts zu einem Mediaplan automatisch erstellt werden. Task-Vorlagen können in den Einstellungen → Task-Vorlagen verwaltet werden.
+                </p>
+                <div className="space-y-4">
+                  {Array.from(new Set(taskVorlagen.map((t) => t.category))).map((cat) => {
+                    const items = taskVorlagen.filter((t) => t.category === cat);
+                    return (
+                      <div key={cat}>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                          {cat}
+                        </p>
+                        <ul className="space-y-2">
+                          {items.map((t) => (
+                            <li key={t.id} className="flex items-start gap-2">
+                              <input
+                                type="checkbox"
+                                id={`task-${t.id}`}
+                                checked={selectedTaskVorlageIds.includes(t.id)}
+                                onChange={() => {
+                                  setSelectedTaskVorlageIds((prev) =>
+                                    prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
+                                  );
+                                }}
+                                className="mt-0.5 h-4 w-4 shrink-0 rounded border-0 border-none bg-white shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)]"
+                              />
+                              <label htmlFor={`task-${t.id}`} className="cursor-pointer text-sm">
+                                <span className="font-medium text-zinc-800">{t.title}</span>
+                                {t.description && (
+                                  <span className="block text-xs text-zinc-500">{t.description}</span>
+                                )}
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
               </section>
 
               <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 pt-4">
