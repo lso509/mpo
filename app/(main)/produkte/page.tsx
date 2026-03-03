@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import * as XLSX from "xlsx";
 
 const CATEGORIES = [
   "Aussenwerbung",
@@ -74,6 +75,100 @@ function mapRow(row: Record<string, unknown>): Product {
   };
 }
 
+const EXCEL_HEADERS = [
+  "ID",
+  "Kategorie",
+  "Verlag",
+  "Kanal",
+  "Produktgruppe",
+  "Produktname",
+  "Platzierung",
+  "Position",
+  "Preis Netto CHF",
+  "Mindestbudget",
+  "Laufzeit",
+  "Creative Grösse",
+  "Ziel-Eignung",
+  "Preis Brutto CHF",
+  "Preis Agenturservice",
+  "Empfohlenes Medienbudget",
+  "Buchungsvoraussetzung",
+  "Zusatzinformationen",
+  "Creative Farbe",
+  "Creative Dateityp",
+  "Creative Typ",
+  "Creative Deadline Tage",
+  "Beispiel Bild",
+] as const;
+
+function productToExcelRow(p: Product): Record<string, string | number | null> {
+  return {
+    "ID": p.id ?? "",
+    "Kategorie": p.category ?? "",
+    "Verlag": p.verlag ?? "",
+    "Kanal": p.kanal ?? "",
+    "Produktgruppe": p.produktgruppe ?? "",
+    "Produktname": p.produktvarianteTitel ?? "",
+    "Platzierung": p.platzierung ?? "",
+    "Position": p.position ?? "",
+    "Preis Netto CHF": p.preisNettoChf ?? "",
+    "Mindestbudget": p.mindestbudget ?? "",
+    "Laufzeit": p.laufzeitProEinheit ?? "",
+    "Creative Grösse": p.creativeGroesse ?? "",
+    "Ziel-Eignung": p.zielEignung ?? "",
+    "Preis Brutto CHF": p.preisBruttoChf ?? "",
+    "Preis Agenturservice": p.preisAgenturservice ?? "",
+    "Empfohlenes Medienbudget": p.empfohlenesMedienbudget ?? "",
+    "Buchungsvoraussetzung": p.buchungsvoraussetzung ?? "",
+    "Zusatzinformationen": p.zusatzinformationen ?? "",
+    "Creative Farbe": p.creativeFarbe ?? "",
+    "Creative Dateityp": p.creativeDateityp ?? "",
+    "Creative Typ": p.creativeTyp ?? "",
+    "Creative Deadline Tage": p.creativeDeadlineTage ?? "",
+    "Beispiel Bild": p.beispielBild ?? "",
+  };
+}
+
+function excelRowToProduct(row: Record<string, unknown>): Partial<Product> {
+  const get = (key: string) => {
+    const v = row[key];
+    if (v == null || v === "") return null;
+    return v;
+  };
+  const num = (key: string) => {
+    const v = get(key);
+    if (v == null) return null;
+    const n = Number(v);
+    return Number.isNaN(n) ? null : n;
+  };
+  const idVal = get("ID");
+  return {
+    id: idVal != null ? String(idVal) : undefined,
+    category: (get("Kategorie") as string) ?? CATEGORIES[0],
+    verlag: get("Verlag") as string | null,
+    kanal: get("Kanal") as string | null,
+    produktgruppe: get("Produktgruppe") as string | null,
+    produktvarianteTitel: get("Produktname") as string | null,
+    platzierung: get("Platzierung") as string | null,
+    position: get("Position") as string | null,
+    preisNettoChf: num("Preis Netto CHF"),
+    mindestbudget: num("Mindestbudget"),
+    laufzeitProEinheit: get("Laufzeit") as string | null,
+    creativeGroesse: get("Creative Grösse") as string | null,
+    zielEignung: get("Ziel-Eignung") as string | null,
+    preisBruttoChf: num("Preis Brutto CHF"),
+    preisAgenturservice: num("Preis Agenturservice"),
+    empfohlenesMedienbudget: get("Empfohlenes Medienbudget") as string | null,
+    buchungsvoraussetzung: get("Buchungsvoraussetzung") as string | null,
+    zusatzinformationen: get("Zusatzinformationen") as string | null,
+    creativeFarbe: get("Creative Farbe") as string | null,
+    creativeDateityp: get("Creative Dateityp") as string | null,
+    creativeTyp: get("Creative Typ") as string | null,
+    creativeDeadlineTage: num("Creative Deadline Tage") ?? null,
+    beispielBild: get("Beispiel Bild") as string | null,
+  };
+}
+
 /** Mappt Product auf alle Spalten der vollständigen produkte-Tabelle (004). */
 function productToRow(p: Partial<Product>): Record<string, unknown> {
   return {
@@ -136,14 +231,52 @@ const emptyProduct: Partial<Product> = {
   buchungsvoraussetzung: null,
 };
 
+function matchesSearch(p: Product, q: string): boolean {
+  if (!q.trim()) return true;
+  const lower = q.trim().toLowerCase();
+  const fields = [
+    p.category,
+    p.produktvarianteTitel,
+    p.verlag,
+    p.kanal,
+    p.platzierung,
+    p.produktgruppe,
+  ]
+    .filter(Boolean)
+    .map((s) => String(s).toLowerCase());
+  return fields.some((f) => f.includes(lower));
+}
+
+function uniqueSorted(arr: (string | null)[]): string[] {
+  return Array.from(new Set(arr.filter((x): x is string => x != null && x !== ""))).sort();
+}
+
 export default function ProduktePage() {
   const [category, setCategory] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterVerlage, setFilterVerlage] = useState<string[]>([]);
+  const [filterKanal, setFilterKanal] = useState<string[]>([]);
+  const [filterZielEignung, setFilterZielEignung] = useState<string[]>([]);
+  const [filterLaufzeit, setFilterLaufzeit] = useState<string[]>([]);
+  const [budgetMin, setBudgetMin] = useState("");
+  const [budgetMax, setBudgetMax] = useState("");
   const [productModal, setProductModal] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleFilter = (
+    setter: React.Dispatch<React.SetStateAction<string[]>>,
+    value: string
+  ) => {
+    setter((prev) =>
+      prev.includes(value) ? prev.filter((x) => x !== value) : [...prev, value]
+    );
+  };
 
   useEffect(() => {
     const supabase = createClient();
@@ -210,14 +343,103 @@ export default function ProduktePage() {
     setSaving(false);
   };
 
-  const filteredProducts =
+  const handleExcelExport = () => {
+    const rows = products.map(productToExcelRow);
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Produktkatalog");
+    XLSX.writeFile(wb, `Produktkatalog_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportStatus(null);
+    setError(null);
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: "array" });
+      const firstSheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet);
+      if (rows.length === 0) {
+        setImportStatus("Die Datei enthält keine Daten.");
+        e.target.value = "";
+        return;
+      }
+      const supabase = createClient();
+      let inserted = 0;
+      let updated = 0;
+      let failed = 0;
+      for (const row of rows) {
+        const partial = excelRowToProduct(row);
+        if (!partial.produktvarianteTitel && !partial.category) continue;
+        const dbRow = productToRow(partial);
+        if (partial.id) {
+          const { error: err } = await supabase
+            .from("produkte")
+            .update(dbRow)
+            .eq("id", partial.id);
+          if (err) failed++;
+          else updated++;
+        } else {
+          const { error: err } = await supabase.from("produkte").insert(dbRow);
+          if (err) failed++;
+          else inserted++;
+        }
+      }
+      const { data: fresh } = await supabase.from("produkte").select("*").order("category", { ascending: true }).order("id", { ascending: true });
+      if (fresh) setProducts(fresh.map(mapRow));
+      const parts = [];
+      if (updated) parts.push(`${updated} aktualisiert`);
+      if (inserted) parts.push(`${inserted} neu angelegt`);
+      if (failed) parts.push(`${failed} fehlgeschlagen`);
+      setImportStatus(parts.length ? parts.join(", ") + "." : "Keine Zeilen verarbeitet.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import fehlgeschlagen.");
+    }
+    e.target.value = "";
+  };
+
+  const filteredByCategory =
     category == null
       ? products
       : products.filter((p) => p.category === category);
 
+  const filteredBySearch = filteredByCategory.filter((p) =>
+    matchesSearch(p, searchQuery)
+  );
+
+  const filteredByMulti = filteredBySearch.filter((p) => {
+    if (filterVerlage.length > 0 && (p.verlag == null || !filterVerlage.includes(p.verlag)))
+      return false;
+    if (filterKanal.length > 0 && (p.kanal == null || !filterKanal.includes(p.kanal)))
+      return false;
+    if (filterZielEignung.length > 0 && (p.zielEignung == null || !filterZielEignung.includes(p.zielEignung)))
+      return false;
+    if (filterLaufzeit.length > 0 && (p.laufzeitProEinheit == null || !filterLaufzeit.includes(p.laufzeitProEinheit)))
+      return false;
+    const budgetVal = p.mindestbudget ?? p.preisNettoChf ?? null;
+    if (budgetMin !== "") {
+      const min = Number(budgetMin);
+      if (!Number.isNaN(min) && (budgetVal == null || budgetVal < min)) return false;
+    }
+    if (budgetMax !== "") {
+      const max = Number(budgetMax);
+      if (!Number.isNaN(max) && (budgetVal == null || budgetVal > max)) return false;
+    }
+    return true;
+  });
+
+  const filteredProducts = filteredByMulti;
+
   const categoriesWithProducts = Array.from(
     new Set(filteredProducts.map((p) => p.category))
   ).sort();
+
+  const uniqueVerlage = uniqueSorted(products.map((p) => p.verlag));
+  const uniqueKanal = uniqueSorted(products.map((p) => p.kanal));
+  const uniqueZielEignung = uniqueSorted(products.map((p) => p.zielEignung));
+  const uniqueLaufzeit = uniqueSorted(products.map((p) => p.laufzeitProEinheit));
 
   const displayName = (p: Product) =>
     p.produktvarianteTitel ?? p.category ?? p.id;
@@ -230,7 +452,7 @@ export default function ProduktePage() {
 
   return (
     <div className="flex gap-6">
-      <aside className="w-56 shrink-0 space-y-4 rounded-2xl border border-zinc-200 bg-white p-4">
+      <aside className="w-64 shrink-0 space-y-4 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-4 max-h-[calc(100vh-8rem)]">
         <h3 className="text-sm font-semibold text-zinc-700">Filter</h3>
         <div>
           <p className="mb-2 text-xs font-medium text-zinc-500">Kategorie</p>
@@ -252,19 +474,152 @@ export default function ProduktePage() {
             ))}
           </ul>
         </div>
-        <div className="flex flex-col gap-2 pt-4">
+
+        {uniqueVerlage.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-medium text-zinc-500">Verlag</p>
+            <ul className="space-y-1.5 max-h-40 overflow-y-auto">
+              {uniqueVerlage.map((v) => (
+                <li key={v} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`verlag-${v}`}
+                    checked={filterVerlage.includes(v)}
+                    onChange={() => toggleFilter(setFilterVerlage, v)}
+                    className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500"
+                  />
+                  <label htmlFor={`verlag-${v}`} className="cursor-pointer text-sm text-zinc-700">
+                    {v}
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {uniqueKanal.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-medium text-zinc-500">Kanal</p>
+            <ul className="space-y-1.5 max-h-40 overflow-y-auto">
+              {uniqueKanal.map((k) => (
+                <li key={k} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`kanal-${k}`}
+                    checked={filterKanal.includes(k)}
+                    onChange={() => toggleFilter(setFilterKanal, k)}
+                    className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500"
+                  />
+                  <label htmlFor={`kanal-${k}`} className="cursor-pointer text-sm text-zinc-700">
+                    {k}
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {uniqueZielEignung.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-medium text-zinc-500">Ziel-Eignung</p>
+            <ul className="space-y-1.5 max-h-32 overflow-y-auto">
+              {uniqueZielEignung.map((z) => (
+                <li key={z} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`ziel-${z}`}
+                    checked={filterZielEignung.includes(z)}
+                    onChange={() => toggleFilter(setFilterZielEignung, z)}
+                    className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500"
+                  />
+                  <label htmlFor={`ziel-${z}`} className="cursor-pointer text-sm text-zinc-700">
+                    {z}
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {uniqueLaufzeit.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-medium text-zinc-500">Laufzeit</p>
+            <ul className="space-y-1.5 max-h-32 overflow-y-auto">
+              {uniqueLaufzeit.map((l) => (
+                <li key={l} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`laufzeit-${l}`}
+                    checked={filterLaufzeit.includes(l)}
+                    onChange={() => toggleFilter(setFilterLaufzeit, l)}
+                    className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500"
+                  />
+                  <label htmlFor={`laufzeit-${l}`} className="cursor-pointer text-sm text-zinc-700">
+                    {l}
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div>
+          <p className="mb-2 text-xs font-medium text-zinc-500">Budget (CHF)</p>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <label htmlFor="budget-min" className="shrink-0 text-xs text-zinc-500 w-8">Min</label>
+              <input
+                id="budget-min"
+                type="number"
+                min={0}
+                step={1}
+                placeholder="0"
+                value={budgetMin}
+                onChange={(e) => setBudgetMin(e.target.value)}
+                className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="budget-max" className="shrink-0 text-xs text-zinc-500 w-8">Max</label>
+              <input
+                id="budget-max"
+                type="number"
+                min={0}
+                step={1}
+                placeholder="∞"
+                value={budgetMax}
+                onChange={(e) => setBudgetMax(e.target.value)}
+                className="w-full rounded border border-zinc-200 px-2 py-1.5 text-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 pt-2 border-t border-zinc-100">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleExcelImport}
+          />
           <button
             type="button"
-            className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700"
+            onClick={handleExcelExport}
+            className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
             Excel herunterladen
           </button>
           <button
             type="button"
-            className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
             Excel importieren
           </button>
+          {importStatus && (
+            <p className="text-xs text-zinc-600">{importStatus}</p>
+          )}
         </div>
       </aside>
 
@@ -284,6 +639,8 @@ export default function ProduktePage() {
             <input
               type="search"
               placeholder="Produktkatalog durchsuchen..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
             />
             <button
