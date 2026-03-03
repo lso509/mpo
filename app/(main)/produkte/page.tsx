@@ -15,12 +15,18 @@ const CATEGORIES = [
   "CUSTOM",
 ];
 
+function categoryLabel(category: string): string {
+  if (!category) return category;
+  return category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
+}
+
 const KANAL_OPTIONS = ["Plakat", "Screen", "Online", "Kino", "Print", "Sonstige"];
 const ZIEL_EIGNUNG_OPTIONS = ["Sichtbarkeit", "Traffic", "Conversion", "Sonstige"];
 const LAUFZEIT_OPTIONS = ["1 Woche", "2 Wochen", "1 Monat", "3 Monate", "6 Monate", "1 Jahr"];
 
 export type Product = {
   id: string;
+  archived?: boolean;
   category: string;
   verlag: string | null;
   kanal: string | null;
@@ -50,6 +56,7 @@ function mapRow(row: Record<string, unknown>): Product {
   const name = row.produktvariante_titel ?? row.name ?? "";
   return {
     id: String(row.id),
+    archived: Boolean(row.archived),
     category: String(category),
     verlag: row.verlag != null ? String(row.verlag) : null,
     kanal: row.kanal != null ? String(row.kanal) : null,
@@ -172,6 +179,7 @@ function excelRowToProduct(row: Record<string, unknown>): Partial<Product> {
 /** Mappt Product auf alle Spalten der vollständigen produkte-Tabelle (004). */
 function productToRow(p: Partial<Product>): Record<string, unknown> {
   return {
+    archived: p.archived ?? false,
     category: p.category ?? null,
     kategorie: p.category ?? null,
     verlag: p.verlag ?? null,
@@ -252,7 +260,7 @@ function uniqueSorted(arr: (string | null)[]): string[] {
 }
 
 export default function ProduktePage() {
-  const [category, setCategory] = useState<string | null>(null);
+  const [filterKategorien, setFilterKategorien] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterVerlage, setFilterVerlage] = useState<string[]>([]);
   const [filterKanal, setFilterKanal] = useState<string[]>([]);
@@ -267,6 +275,9 @@ export default function ProduktePage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleFilter = (
@@ -344,7 +355,8 @@ export default function ProduktePage() {
   };
 
   const handleExcelExport = () => {
-    const rows = products.map(productToExcelRow);
+    const list = showArchived ? products.filter((p) => p.archived) : products.filter((p) => !p.archived);
+    const rows = list.map(productToExcelRow);
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Produktkatalog");
@@ -400,10 +412,75 @@ export default function ProduktePage() {
     e.target.value = "";
   };
 
+  const refetchProducts = async () => {
+    const supabase = createClient();
+    const { data } = await supabase.from("produkte").select("*").order("category", { ascending: true }).order("id", { ascending: true });
+    if (data) setProducts(data.map(mapRow));
+  };
+
+  const handleArchivieren = async (id: string) => {
+    setOpenMenuId(null);
+    setError(null);
+    const supabase = createClient();
+    const { error: err } = await supabase.from("produkte").update({ archived: true }).eq("id", id);
+    if (err) {
+      setError(`Archivieren fehlgeschlagen: ${err.message}`);
+      return;
+    }
+    await refetchProducts();
+  };
+
+  const handleWiederherstellen = async (id: string) => {
+    setOpenMenuId(null);
+    setError(null);
+    const supabase = createClient();
+    const { error: err } = await supabase.from("produkte").update({ archived: false }).eq("id", id);
+    if (err) {
+      setError(`Wiederherstellen fehlgeschlagen: ${err.message}`);
+      return;
+    }
+    await refetchProducts();
+  };
+
+  const handleDuplizieren = (p: Product) => {
+    setOpenMenuId(null);
+    setEditingProduct({ ...p, id: undefined });
+    setProductModal("new");
+  };
+
+  const handleLöschen = (id: string) => {
+    setOpenMenuId(null);
+    setDeleteConfirmId(id);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmId) return;
+    const supabase = createClient();
+    await supabase.from("produkte").delete().eq("id", deleteConfirmId);
+    setDeleteConfirmId(null);
+    await refetchProducts();
+  };
+
+  useEffect(() => {
+    if (openMenuId === null) return;
+    const close = () => setOpenMenuId(null);
+    const t = setTimeout(() => {
+      window.addEventListener("click", close);
+    }, 0);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("click", close);
+    };
+  }, [openMenuId]);
+
+  const visibleProducts = showArchived
+    ? products.filter((p) => p.archived)
+    : products.filter((p) => !p.archived);
+
   const filteredByCategory =
-    category == null
-      ? products
-      : products.filter((p) => p.category === category);
+    filterKategorien.length === 0
+      ? visibleProducts
+      : visibleProducts.filter((p) => filterKategorien.includes(p.category));
 
   const filteredBySearch = filteredByCategory.filter((p) =>
     matchesSearch(p, searchQuery)
@@ -436,10 +513,10 @@ export default function ProduktePage() {
     new Set(filteredProducts.map((p) => p.category))
   ).sort();
 
-  const uniqueVerlage = uniqueSorted(products.map((p) => p.verlag));
-  const uniqueKanal = uniqueSorted(products.map((p) => p.kanal));
-  const uniqueZielEignung = uniqueSorted(products.map((p) => p.zielEignung));
-  const uniqueLaufzeit = uniqueSorted(products.map((p) => p.laufzeitProEinheit));
+  const uniqueVerlage = uniqueSorted(visibleProducts.map((p) => p.verlag));
+  const uniqueKanal = uniqueSorted(visibleProducts.map((p) => p.kanal));
+  const uniqueZielEignung = uniqueSorted(visibleProducts.map((p) => p.zielEignung));
+  const uniqueLaufzeit = uniqueSorted(visibleProducts.map((p) => p.laufzeitProEinheit));
 
   const displayName = (p: Product) =>
     p.produktvarianteTitel ?? p.category ?? p.id;
@@ -452,24 +529,23 @@ export default function ProduktePage() {
 
   return (
     <div className="flex gap-6">
-      <aside className="w-64 shrink-0 space-y-4 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-4 max-h-[calc(100vh-8rem)]">
+      <aside className="w-64 shrink-0 space-y-4">
         <h3 className="text-sm font-semibold text-zinc-700">Filter</h3>
         <div>
           <p className="mb-2 text-xs font-medium text-zinc-500">Kategorie</p>
-          <ul className="space-y-1">
+          <ul className="space-y-1.5">
             {CATEGORIES.map((c) => (
-              <li key={c}>
-                <button
-                  type="button"
-                  onClick={() => setCategory((prev) => (prev === c ? null : c))}
-                  className={`block w-full rounded px-2 py-1.5 text-left text-sm ${
-                    category === c
-                      ? "bg-violet-100 font-medium text-violet-900"
-                      : "text-zinc-700 hover:bg-zinc-50"
-                  }`}
-                >
-                  {c}
-                </button>
+              <li key={c} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id={`kategorie-${c}`}
+                  checked={filterKategorien.includes(c)}
+                  onChange={() => toggleFilter(setFilterKategorien, c)}
+                  className="h-4 w-4 rounded border-0 border-none shadow-none outline-none ring-0 focus:ring-2 focus:ring-violet-500 focus:ring-offset-0"
+                />
+                  <label htmlFor={`kategorie-${c}`} className="cursor-pointer text-sm text-zinc-700">
+                    {categoryLabel(c)}
+                  </label>
               </li>
             ))}
           </ul>
@@ -478,7 +554,7 @@ export default function ProduktePage() {
         {uniqueVerlage.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium text-zinc-500">Verlag</p>
-            <ul className="space-y-1.5 max-h-40 overflow-y-auto">
+            <ul className="space-y-1.5">
               {uniqueVerlage.map((v) => (
                 <li key={v} className="flex items-center gap-2">
                   <input
@@ -486,7 +562,7 @@ export default function ProduktePage() {
                     id={`verlag-${v}`}
                     checked={filterVerlage.includes(v)}
                     onChange={() => toggleFilter(setFilterVerlage, v)}
-                    className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500"
+                    className="h-4 w-4 rounded border-0 border-none shadow-none outline-none ring-0 focus:ring-2 focus:ring-violet-500 focus:ring-offset-0"
                   />
                   <label htmlFor={`verlag-${v}`} className="cursor-pointer text-sm text-zinc-700">
                     {v}
@@ -500,7 +576,7 @@ export default function ProduktePage() {
         {uniqueKanal.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium text-zinc-500">Kanal</p>
-            <ul className="space-y-1.5 max-h-40 overflow-y-auto">
+            <ul className="space-y-1.5">
               {uniqueKanal.map((k) => (
                 <li key={k} className="flex items-center gap-2">
                   <input
@@ -508,7 +584,7 @@ export default function ProduktePage() {
                     id={`kanal-${k}`}
                     checked={filterKanal.includes(k)}
                     onChange={() => toggleFilter(setFilterKanal, k)}
-                    className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500"
+                    className="h-4 w-4 rounded border-0 border-none shadow-none outline-none ring-0 focus:ring-2 focus:ring-violet-500 focus:ring-offset-0"
                   />
                   <label htmlFor={`kanal-${k}`} className="cursor-pointer text-sm text-zinc-700">
                     {k}
@@ -522,7 +598,7 @@ export default function ProduktePage() {
         {uniqueZielEignung.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium text-zinc-500">Ziel-Eignung</p>
-            <ul className="space-y-1.5 max-h-32 overflow-y-auto">
+            <ul className="space-y-1.5">
               {uniqueZielEignung.map((z) => (
                 <li key={z} className="flex items-center gap-2">
                   <input
@@ -530,7 +606,7 @@ export default function ProduktePage() {
                     id={`ziel-${z}`}
                     checked={filterZielEignung.includes(z)}
                     onChange={() => toggleFilter(setFilterZielEignung, z)}
-                    className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500"
+                    className="h-4 w-4 rounded border-0 border-none shadow-none outline-none ring-0 focus:ring-2 focus:ring-violet-500 focus:ring-offset-0"
                   />
                   <label htmlFor={`ziel-${z}`} className="cursor-pointer text-sm text-zinc-700">
                     {z}
@@ -544,7 +620,7 @@ export default function ProduktePage() {
         {uniqueLaufzeit.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium text-zinc-500">Laufzeit</p>
-            <ul className="space-y-1.5 max-h-32 overflow-y-auto">
+            <ul className="space-y-1.5">
               {uniqueLaufzeit.map((l) => (
                 <li key={l} className="flex items-center gap-2">
                   <input
@@ -552,7 +628,7 @@ export default function ProduktePage() {
                     id={`laufzeit-${l}`}
                     checked={filterLaufzeit.includes(l)}
                     onChange={() => toggleFilter(setFilterLaufzeit, l)}
-                    className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500"
+                    className="h-4 w-4 rounded border-0 border-none shadow-none outline-none ring-0 focus:ring-2 focus:ring-violet-500 focus:ring-offset-0"
                   />
                   <label htmlFor={`laufzeit-${l}`} className="cursor-pointer text-sm text-zinc-700">
                     {l}
@@ -595,7 +671,14 @@ export default function ProduktePage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 pt-2 border-t border-zinc-100">
+        <div className="flex flex-col gap-2 pt-2">
+          <button
+            type="button"
+            onClick={() => setShowArchived((prev) => !prev)}
+            className={`rounded-lg px-3 py-2 text-sm font-medium ${showArchived ? "bg-zinc-200 text-zinc-800" : "bg-zinc-700 text-white hover:bg-zinc-600"}`}
+          >
+            {showArchived ? "Zurück zum Katalog" : "Archiv"}
+          </button>
           <input
             ref={fileInputRef}
             type="file"
@@ -605,17 +688,17 @@ export default function ProduktePage() {
           />
           <button
             type="button"
-            onClick={handleExcelExport}
-            className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
-            Excel herunterladen
+            Excel importieren
           </button>
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            onClick={handleExcelExport}
+            className="text-sm text-zinc-500 underline hover:text-zinc-700"
           >
-            Excel importieren
+            Excel herunterladen
           </button>
           {importStatus && (
             <p className="text-xs text-zinc-600">{importStatus}</p>
@@ -627,12 +710,12 @@ export default function ProduktePage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <header>
             <h1 className="text-3xl font-semibold tracking-tight text-zinc-950">
-              Produktkatalog
+              {showArchived ? "Archiv" : "Produktkatalog"}
             </h1>
             <p className="mt-1 text-sm text-zinc-600">
               {loading
                 ? "Laden…"
-                : `${filteredProducts.length} von ${products.length} Produkten`}
+                : `${filteredProducts.length} von ${visibleProducts.length} Produkten`}
             </p>
           </header>
           <div className="flex gap-3">
@@ -672,8 +755,10 @@ export default function ProduktePage() {
           <div className="space-y-6">
             {categoriesWithProducts.length === 0 ? (
               <p className="text-zinc-500">
-                {products.length === 0
-                  ? "Keine Produkte vorhanden. Über «Neues Produkt» anlegen."
+                {visibleProducts.length === 0
+                  ? showArchived
+                    ? "Keine archivierten Produkte."
+                    : "Keine Produkte vorhanden. Über «Neues Produkt» anlegen."
                   : "Keine Produkte in der gewählten Kategorie."}
               </p>
             ) : (
@@ -682,18 +767,88 @@ export default function ProduktePage() {
                 if (items.length === 0) return null;
                 return (
                   <section key={cat}>
-                    <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-                      {cat}
+                    <h2 className="mb-3 text-sm font-semibold tracking-wide text-zinc-500">
+                      {categoryLabel(cat)}
                     </h2>
                     <div className="grid gap-4 sm:grid-cols-2">
                       {items.map((p) => (
                         <article
                           key={p.id}
-                          className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
+                          className="rounded-2xl border border-zinc-200 bg-white p-4"
                         >
-                          <h3 className="font-semibold text-zinc-950">
-                            {displayName(p)}
-                          </h3>
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="font-semibold text-zinc-950 min-w-0">
+                              {displayName(p)}
+                            </h3>
+                            <div className="flex shrink-0 items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openModal(p.id)}
+                                className="rounded-lg border border-zinc-200 p-2 text-zinc-600 hover:bg-zinc-50"
+                                title="Bearbeiten"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                  <path d="m15 5 4 4" />
+                                </svg>
+                              </button>
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenMenuId((prev) => (prev === p.id ? null : p.id));
+                                  }}
+                                  className="rounded-lg border border-zinc-200 p-2 text-zinc-600 hover:bg-zinc-50"
+                                  title="Menü"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <circle cx="12" cy="6" r="1.5" />
+                                    <circle cx="12" cy="12" r="1.5" />
+                                    <circle cx="12" cy="18" r="1.5" />
+                                  </svg>
+                                </button>
+                                {openMenuId === p.id && (
+                                  <div
+                                    className="absolute right-0 top-full z-10 mt-1 min-w-[180px] rounded-lg border border-zinc-200 bg-white py-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {p.archived ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleWiederherstellen(p.id)}
+                                        className="block w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+                                      >
+                                        Produkt wiederherstellen
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleArchivieren(p.id)}
+                                        className="block w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+                                      >
+                                        Produkt archivieren
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDuplizieren(p)}
+                                      className="block w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+                                    >
+                                      Duplizieren
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleLöschen(p.id)}
+                                      className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                                    >
+                                      Löschen
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                           <p className="mt-1 text-xs text-zinc-500">
                             Verlag: {p.verlag ?? "—"} · Kanal: {p.kanal ?? "—"}
                           </p>
@@ -726,13 +881,6 @@ export default function ProduktePage() {
                               </dd>
                             </div>
                           </dl>
-                          <button
-                            type="button"
-                            onClick={() => openModal(p.id)}
-                            className="mt-4 w-full rounded-lg border border-zinc-200 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-                          >
-                            Bearbeiten
-                          </button>
                         </article>
                       ))}
                     </div>
@@ -743,6 +891,31 @@ export default function ProduktePage() {
           </div>
         )}
       </div>
+
+      {deleteConfirmId != null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl">
+            <p className="text-sm font-medium text-zinc-800">Produkt wirklich löschen?</p>
+            <p className="mt-1 text-xs text-zinc-500">Diese Aktion kann nicht rückgängig gemacht werden.</p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmId(null)}
+                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteConfirm}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Löschen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {productModal != null && editingProduct != null && (
         <div
@@ -781,7 +954,7 @@ export default function ProduktePage() {
                     >
                       {CATEGORIES.map((c) => (
                         <option key={c} value={c}>
-                          {c}
+                          {categoryLabel(c)}
                         </option>
                       ))}
                     </select>
