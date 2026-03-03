@@ -3,6 +3,21 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  font-size: 1rem;
+  /* Smallest = 1rem, rest scaled proportionally – set in :root so utilities use these */
+  --text-xs: 1rem;
+  --text-sm: 1rem;
+  --text-base: 1.167rem;
+  --text-lg: 1.333rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2rem;
+  --text-4xl: 2.5rem;
+  --text-5xl: 3rem;
+  --text-6xl: 3.75rem;
+  --text-7xl: 4.5rem;
+  --text-8xl: 6rem;
+  --text-9xl: 8rem;
 }
 
 @theme inline {
@@ -10,6 +25,25 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --text-xs: 1rem;
+  --text-sm: 1rem;
+  --text-base: 1.167rem;
+  --text-lg: 1.333rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2rem;
+  --text-4xl: 2.5rem;
+  --text-5xl: 3rem;
+  --text-6xl: 3.75rem;
+  --text-7xl: 4.5rem;
+  --text-8xl: 6rem;
+  --text-9xl: 8rem;
+}
+
+/* Sicherstellen, dass kleinste Klassen mindestens 1rem sind (keine 14px mehr) */
+.text-xs,
+.text-sm {
+  font-size: 1rem !important;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,4 +57,11 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  font-size: 1rem;
+}
+
+/* Selects in Formularen gleiche Höhe wie Text-Inputs (Safari u.a.) */
+select.rounded-lg {
+  min-height: 2.5rem;
+  appearance: auto;
 }

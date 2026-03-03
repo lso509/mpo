@@ -1013,7 +1013,7 @@ export default function ProduktePage() {
               Falls die Tabelle noch nicht alle Spalten hat: Im Supabase Dashboard
               (SQL Editor) die Migration ausführen:{" "}
               <code className="rounded bg-red-100 px-1">
-                supabase/migrations/004_produkte_vollstaendig.sql
+                supabase/migrations/008_produkte_groesse_einheit_waehrung.sql
               </code>
             </p>
           </div>
@@ -1044,7 +1044,7 @@ export default function ProduktePage() {
                     <h2 className="mb-4 text-sm font-semibold tracking-wide text-zinc-500">
                       {categoryLabel(cat)}
                     </h2>
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-3">
                       {items.map((p) => (
                         <article
                           key={p.id}

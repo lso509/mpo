@@ -1,6 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const PUBLIC_PATHS = ["/login", "/signup"];
+const AUTH_PATH_PREFIX = "/auth/";
+
+function isPublicPath(pathname: string): boolean {
+  if (PUBLIC_PATHS.includes(pathname)) return true;
+  if (pathname.startsWith(AUTH_PATH_PREFIX)) return true;
+  return false;
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -34,8 +43,31 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // Session aktualisieren (wichtig für SSR, sonst können User ausgeloggt werden)
-  await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+  const pathname = request.nextUrl.pathname;
+
+  if (isPublicPath(pathname)) {
+    if (user && (pathname === "/login" || pathname === "/signup")) {
+      const redirect = NextResponse.redirect(new URL("/dashboard", request.url));
+      copyCookies(supabaseResponse, redirect);
+      return redirect;
+    }
+    return supabaseResponse;
+  }
+
+  if (!user) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirect", pathname);
+    const redirect = NextResponse.redirect(loginUrl);
+    copyCookies(supabaseResponse, redirect);
+    return redirect;
+  }
 
   return supabaseResponse;
+}
+
+function copyCookies(from: NextResponse, to: NextResponse): void {
+  from.cookies.getAll().forEach((c) => {
+    to.cookies.set(c.name, c.value);
+  });
 }
