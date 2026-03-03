@@ -39,15 +39,15 @@ export default function MainLayout({
   }, [onScroll]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-50">
-      <div
-        className="overflow-hidden transition-[height] duration-200 ease-out"
-        style={{ height: headerVisible ? "3.5rem" : "0" }}
-      >
-        <Header />
-      </div>
-      <div className="flex min-w-0 flex-1">
-        <Sidebar />
+    <div className="flex min-h-screen bg-zinc-50">
+      <Sidebar />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div
+          className="shrink-0 overflow-hidden transition-[height] duration-200 ease-out"
+          style={{ height: headerVisible ? "3rem" : "0" }}
+        >
+          <Header />
+        </div>
         <div
           ref={scrollRef}
           className="min-w-0 flex-1 overflow-auto"

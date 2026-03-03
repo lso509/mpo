@@ -5,6 +5,22 @@ import { usePathname } from "next/navigation";
 
 const iconClass = "h-5 w-5 shrink-0";
 
+export function SidebarLogo() {
+  return (
+    <Link
+      href="/dashboard"
+      className="flex h-[130px] shrink-0 items-start border-b border-zinc-200 px-3 pt-[30px] hover:opacity-90"
+      aria-label="Start"
+    >
+      <img
+        src="/coagmpa.svg"
+        alt="CO AG MP A"
+        className="h-[100px] w-auto max-w-[240px] object-contain object-left"
+      />
+    </Link>
+  );
+}
+
 const icons = {
   dashboard: (
     <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -63,8 +79,9 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex w-56 flex-col border-r border-zinc-200 bg-white">
-      <nav className="flex flex-1 flex-col gap-0.5 p-3 pt-4">
+    <aside className="sticky top-0 flex h-screen w-56 flex-col border-r border-zinc-200 bg-white">
+      <SidebarLogo />
+      <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-3 pt-4">
         {NAV.map((item) => {
           const { href, label, icon } = item;
           const badge = "badge" in item ? item.badge : undefined;
@@ -91,7 +108,7 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="border-t border-zinc-200 p-3">
+      <div className="mt-auto shrink-0 border-t border-zinc-200 bg-white p-3">
         <div className="flex items-center gap-3 rounded-lg px-3 py-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100 text-sm font-semibold text-violet-900">
             SS

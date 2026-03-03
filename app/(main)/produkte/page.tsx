@@ -39,9 +39,14 @@ export type Product = {
   position: string | null;
   zusatzinformationen: string | null;
   zielEignung: string | null;
+  /** RGB oder CMYK */
   creativeFarbe: string | null;
   creativeDateityp: string | null;
   creativeGroesse: string | null;
+  /** Einheit für Grösse: px, mm, cm */
+  creativeGroesseEinheit: "px" | "mm" | "cm" | null;
+  /** Währung für Preise */
+  waehrung: "CHF" | "EUR" | null;
   creativeTyp: string | null;
   creativeDeadlineTage: number | null;
   creativeDeadlineDate: string | null;
@@ -81,6 +86,8 @@ function mapRow(row: Record<string, unknown>): Product {
     creativeFarbe: row.creative_farbe != null ? String(row.creative_farbe) : null,
     creativeDateityp: row.creative_dateityp != null ? String(row.creative_dateityp) : null,
     creativeGroesse: row.creative_groesse != null ? String(row.creative_groesse) : (row.size != null ? String(row.size) : null),
+    creativeGroesseEinheit: (row.creative_groesse_einheit === "mm" || row.creative_groesse_einheit === "cm") ? row.creative_groesse_einheit : "px",
+    waehrung: row.waehrung === "EUR" ? "EUR" : "CHF",
     creativeTyp: row.creative_typ != null ? String(row.creative_typ) : null,
     creativeDeadlineTage: row.creative_deadline_tage != null ? Number(row.creative_deadline_tage) : null,
     creativeDeadlineDate: row.creative_deadline_date != null ? String(row.creative_deadline_date) : null,
@@ -207,6 +214,8 @@ function productToRow(p: Partial<Product>): Record<string, unknown> {
     creative_farbe: p.creativeFarbe ?? null,
     creative_dateityp: p.creativeDateityp ?? null,
     creative_groesse: p.creativeGroesse ?? null,
+    creative_groesse_einheit: p.creativeGroesseEinheit ?? "px",
+    waehrung: p.waehrung ?? "CHF",
     creative_typ: p.creativeTyp ?? null,
     creative_deadline_tage: p.creativeDeadlineTage ?? null,
     creative_deadline_date: p.creativeDeadlineDate ?? null,
@@ -295,6 +304,8 @@ const emptyProduct: Partial<Product> = {
   creativeFarbe: null,
   creativeDateityp: null,
   creativeGroesse: null,
+  creativeGroesseEinheit: "px",
+  waehrung: "CHF",
   creativeTyp: null,
   creativeDeadlineTage: null,
   creativeDeadlineDate: null,
@@ -327,6 +338,73 @@ function uniqueSorted(arr: (string | null)[]): string[] {
   return Array.from(new Set(arr.filter((x): x is string => x != null && x !== ""))).sort();
 }
 
+/** Levenshtein-Distanz (Anzahl Einfügen/Löschen/Ersetzen) */
+function levenshtein(a: string, b: string): number {
+  const an = a.length;
+  const bn = b.length;
+  const matrix: number[][] = Array.from({ length: bn + 1 }, () => Array(an + 1).fill(0));
+  for (let i = 0; i <= an; i++) matrix[0][i] = i;
+  for (let j = 0; j <= bn; j++) matrix[j][0] = j;
+  for (let j = 1; j <= bn; j++) {
+    for (let i = 1; i <= an; i++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[j][i] = Math.min(
+        matrix[j][i - 1] + 1,
+        matrix[j - 1][i] + 1,
+        matrix[j - 1][i - 1] + cost
+      );
+    }
+  }
+  return matrix[bn][an];
+}
+
+/** Ähnlichkeit zweier Strings 0 (keine) bis 1 (identisch). */
+function stringSimilarity(a: string, b: string): number {
+  const sa = (a || "").trim().toLowerCase();
+  const sb = (b || "").trim().toLowerCase();
+  if (sa === sb) return 1;
+  if (!sa || !sb) return 0;
+  const maxLen = Math.max(sa.length, sb.length);
+  const dist = levenshtein(sa, sb);
+  return 1 - dist / maxLen;
+}
+
+/** Mögliche Schwellenwerte für Fuzzy-Match-Warnung (0–1). */
+const FUZZY_MATCH_THRESHOLDS = [
+  { value: 0.5, label: "50% (auch mittelähnliche)" },
+  { value: 0.6, label: "60% (empfohlen)" },
+  { value: 0.7, label: "70% (ähnlich)" },
+  { value: 0.8, label: "80% (sehr ähnlich)" },
+  { value: 0.9, label: "90% (fast identisch)" },
+] as const;
+
+const DEFAULT_FUZZY_THRESHOLD = 0.6;
+
+/** Findet bestehende Produkte, die dem Kandidaten ähneln (Score >= threshold). */
+function findSimilarProducts(
+  candidate: Partial<Product>,
+  existing: Product[],
+  threshold: number
+): { product: Product; score: number }[] {
+  const nameA = (candidate.produktvarianteTitel ?? candidate.category ?? "").trim();
+  const categoryA = (candidate.category ?? "").trim().toLowerCase();
+  if (!nameA && !categoryA) return [];
+
+  const withScores = existing
+    .map((p) => {
+      const nameB = (p.produktvarianteTitel ?? p.category ?? "").trim();
+      const categoryB = (p.category ?? "").trim().toLowerCase();
+      const nameSim = stringSimilarity(nameA, nameB);
+      const sameCategory = categoryA && categoryB && categoryA === categoryB;
+      const score = Math.min(1, nameSim * 0.85 + (sameCategory ? 0.15 : 0));
+      return { product: p, score };
+    })
+    .filter((x) => x.score >= threshold)
+    .sort((a, b) => b.score - a.score);
+
+  return withScores.slice(0, 10);
+}
+
 export default function ProduktePage() {
   const [filterKategorien, setFilterKategorien] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -350,6 +428,11 @@ export default function ProduktePage() {
   const [selectedTaskVorlageIds, setSelectedTaskVorlageIds] = useState<string[]>([]);
   const [aenderungshistorie, setAenderungshistorie] = useState<{ id: string; created_at: string; changed_by: string | null; change_description: string }[]>([]);
   const [sortByCategory, setSortByCategory] = useState<"alphabetisch" | "neueste">("alphabetisch");
+  const [fuzzyMatchThreshold, setFuzzyMatchThreshold] = useState(DEFAULT_FUZZY_THRESHOLD);
+  const [similarProductsDialog, setSimilarProductsDialog] = useState<{
+    similar: { product: Product; score: number }[];
+    onConfirmCreate: () => void;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** Beim Öffnen des Modals geladene Task-Vorlagen-IDs (zum Erkennen von Änderungen beim Speichern) */
   const initialTaskVorlageIdsRef = useRef<string[]>([]);
@@ -451,7 +534,33 @@ export default function ProduktePage() {
     const row = productToRow(editingProduct);
 
     if (productModal === "new" || asNewVariant) {
-      // "Variante erstellen": Änderungen als neues Produkt speichern
+      // Fuzzy-Check: ähnliche Produkte?
+      const existing = products.filter((p) => !p.archived);
+      const similar = findSimilarProducts(editingProduct, existing, fuzzyMatchThreshold);
+      if (similar.length > 0) {
+        setSimilarProductsDialog({
+          similar,
+          onConfirmCreate: () => {
+            setSimilarProductsDialog(null);
+            setSaving(true);
+            supabase.from("produkte").insert(row).select("id").single().then(({ data: inserted, error: err }) => {
+              if (err) setError(err.message);
+              else if (inserted?.id) {
+                saveProduktTaskVorlagen(inserted.id).then(() => {
+                  supabase.from("produkte").select("*").then(({ data }) => {
+                    if (data) setProducts(data.map(mapRow));
+                    closeModal();
+                  });
+                });
+              }
+              setSaving(false);
+            });
+          },
+        });
+        setSaving(false);
+        return;
+      }
+      // Keine ähnlichen: direkt einfügen
       const { data: inserted, error: err } = await supabase.from("produkte").insert(row).select("id").single();
       if (err) setError(err.message);
       else if (inserted?.id) {
@@ -1088,478 +1197,404 @@ export default function ProduktePage() {
           onClick={closeModal}
         >
           <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl"
+            className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-zinc-200 bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-xl font-semibold text-zinc-950">
+            <h3 className="shrink-0 border-b border-zinc-200 px-6 py-4 text-xl font-semibold text-zinc-950">
               {productModal === "new" ? "Neues Produkt" : "Produkt bearbeiten"}
             </h3>
 
             <form
-              className="mt-6 space-y-6"
+              className="flex min-h-0 flex-1 flex-col"
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSave(false, false);
               }}
             >
-              {/* 1. Basis Informationen */}
-              <section>
-                <h4 className="mb-3 text-sm font-semibold text-zinc-800">
-                  Basis Informationen
-                </h4>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Kategorie
-                    </label>
-                    <select
-                      value={editingProduct.category ?? ""}
-                      onChange={(e) => setField("category", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    >
-                      {CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {categoryLabel(c)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Verlag
-                    </label>
-                    <input
-                      type="text"
-                      value={editingProduct.verlag ?? ""}
-                      onChange={(e) => setField("verlag", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Kanal (Werbeform)
-                    </label>
-                    <select
-                      value={editingProduct.kanal ?? ""}
-                      onChange={(e) => setField("kanal", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    >
-                      <option value="">—</option>
-                      {KANAL_OPTIONS.map((k) => (
-                        <option key={k} value={k}>
-                          {k}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Produktgruppe
-                    </label>
-                    <input
-                      type="text"
-                      value={editingProduct.produktgruppe ?? ""}
-                      onChange={(e) => setField("produktgruppe", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Produktvariante Titel
-                    </label>
-                    <input
-                      type="text"
-                      value={editingProduct.produktvarianteTitel ?? ""}
-                      onChange={(e) =>
-                        setField("produktvarianteTitel", e.target.value)
-                      }
-                      placeholder="z.B. Liewo 1/4 Seite, Liewo 1/2 Seite"
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Beispiel (Platzhalter für Bild)
-                    </label>
-                    <textarea
-                      value={editingProduct.beispielBild ?? ""}
-                      onChange={(e) => setField("beispielBild", e.target.value)}
-                      rows={2}
-                      placeholder="Platzhalter für zukünftige Bildfunktion"
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                    <p className="mt-1 text-xs text-zinc-400">
-                      Diese Funktion ist derzeit deaktiviert
-                    </p>
-                  </div>
-                </div>
-              </section>
-
-              {/* 2. Platzierung & Details */}
-              <section>
-                <h4 className="mb-3 text-sm font-semibold text-zinc-800">
-                  Platzierung &amp; Details
-                </h4>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Platzierung
-                    </label>
-                    <textarea
-                      value={editingProduct.platzierung ?? ""}
-                      onChange={(e) => setField("platzierung", e.target.value)}
-                      rows={3}
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Position
-                    </label>
-                    <input
-                      type="text"
-                      value={editingProduct.position ?? ""}
-                      onChange={(e) => setField("position", e.target.value)}
-                      placeholder="z.B. Above the Fold - Homepage"
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Zusatzinformationen für diese Produktvariante
-                    </label>
-                    <textarea
-                      value={editingProduct.zusatzinformationen ?? ""}
-                      onChange={(e) =>
-                        setField("zusatzinformationen", e.target.value)
-                      }
-                      placeholder="z.B. Werberadius: Liechtenstein"
-                      rows={2}
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Ziel Eignung
-                    </label>
-                    <select
-                      value={editingProduct.zielEignung ?? ""}
-                      onChange={(e) => setField("zielEignung", e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    >
-                      <option value="">—</option>
-                      {ZIEL_EIGNUNG_OPTIONS.map((z) => (
-                        <option key={z} value={z}>
-                          {z}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </section>
-
-              {/* 3. Creative */}
-              <section>
-                <h4 className="mb-3 text-sm font-semibold text-zinc-800">
-                  Informationen zum erforderlichen Creative
-                </h4>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Farbe
-                    </label>
-                    <input
-                      type="text"
-                      value={editingProduct.creativeFarbe ?? ""}
-                      onChange={(e) =>
-                        setField("creativeFarbe", e.target.value)
-                      }
-                      placeholder="z.B. RGB"
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Dateityp
-                    </label>
-                    <input
-                      type="text"
-                      value={editingProduct.creativeDateityp ?? ""}
-                      onChange={(e) =>
-                        setField("creativeDateityp", e.target.value)
-                      }
-                      placeholder="z.B. PDF"
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Grösse
-                    </label>
-                    <input
-                      type="text"
-                      value={editingProduct.creativeGroesse ?? ""}
-                      onChange={(e) =>
-                        setField("creativeGroesse", e.target.value)
-                      }
-                      placeholder="z.B. 728 x 90 px"
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Typ
-                    </label>
-                    <input
-                      type="text"
-                      value={editingProduct.creativeTyp ?? ""}
-                      onChange={(e) => setField("creativeTyp", e.target.value)}
-                      placeholder="z.B. Statischer Banner oder Animiert"
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Creative Deadline
-                    </label>
-                    <input
-                      type="date"
-                      value={editingProduct.creativeDeadlineDate ?? ""}
-                      onChange={(e) =>
-                        setField("creativeDeadlineDate", e.target.value || null)
-                      }
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                </div>
-              </section>
-
-              {/* 4. Preise & Budget */}
-              <section>
-                <h4 className="mb-3 text-sm font-semibold text-zinc-800">
-                  Preise &amp; Budget
-                </h4>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Laufzeit pro Einheit
-                    </label>
-                    <select
-                      value={editingProduct.laufzeitProEinheit ?? ""}
-                      onChange={(e) =>
-                        setField("laufzeitProEinheit", e.target.value)
-                      }
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    >
-                      {LAUFZEIT_OPTIONS.map((l) => (
-                        <option key={l} value={l}>
-                          {l}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Preis Brutto (CHF) pro Einheit
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={editingProduct.preisBruttoChf ?? ""}
-                      onChange={(e) =>
-                        setField(
-                          "preisBruttoChf",
-                          e.target.value === ""
-                            ? null
-                            : parseFloat(e.target.value)
-                        )
-                      }
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Preis Netto (CHF) pro Einheit
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={editingProduct.preisNettoChf ?? ""}
-                      onChange={(e) =>
-                        setField(
-                          "preisNettoChf",
-                          e.target.value === ""
-                            ? null
-                            : parseFloat(e.target.value)
-                        )
-                      }
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Preis Agenturservice pro Einheit
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={editingProduct.preisAgenturservice ?? ""}
-                      onChange={(e) =>
-                        setField(
-                          "preisAgenturservice",
-                          e.target.value === ""
-                            ? null
-                            : parseFloat(e.target.value)
-                        )
-                      }
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Mindestbudget
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={editingProduct.mindestbudget ?? ""}
-                      onChange={(e) =>
-                        setField(
-                          "mindestbudget",
-                          e.target.value === ""
-                            ? null
-                            : parseFloat(e.target.value)
-                        )
-                      }
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500">
-                      Empfohlenes Medienbudget (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={editingProduct.empfohlenesMedienbudget ?? ""}
-                      onChange={(e) =>
-                        setField("empfohlenesMedienbudget", e.target.value)
-                      }
-                      placeholder="Optional"
-                      className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                </div>
-              </section>
-
-              {/* 5. Buchungsvoraussetzung */}
-              <section>
-                <h4 className="mb-3 text-sm font-semibold text-zinc-800">
-                  Buchungsvoraussetzung
-                </h4>
-                <textarea
-                  value={editingProduct.buchungsvoraussetzung ?? ""}
-                  onChange={(e) =>
-                    setField("buchungsvoraussetzung", e.target.value)
-                  }
-                  placeholder="z.B. Meta Business Manager Setup"
-                  rows={3}
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                />
-              </section>
-
-              {/* Automatische Tasks für dieses Produkt */}
-              <section>
-                <h4 className="mb-1 text-sm font-semibold text-zinc-800">
-                  Automatische Tasks für dieses Produkt
-                </h4>
-                <p className="mb-4 text-xs text-zinc-500">
-                  Wählen Sie Tasks aus, die beim Hinzufügen dieses Produkts zu einem Mediaplan automatisch erstellt werden. Task-Vorlagen können in den Einstellungen → Task-Vorlagen verwaltet werden.
-                </p>
-                <div className="space-y-4">
-                  {Array.from(new Set(taskVorlagen.map((t) => t.category))).map((cat) => {
-                    const items = taskVorlagen.filter((t) => t.category === cat);
-                    return (
-                      <div key={cat}>
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                          {cat}
-                        </p>
-                        <ul className="space-y-2">
-                          {items.map((t) => (
-                            <li key={t.id} className="flex items-start gap-2">
-                              <input
-                                type="checkbox"
-                                id={`task-${t.id}`}
-                                checked={selectedTaskVorlageIds.includes(t.id)}
-                                onChange={() => {
-                                  setSelectedTaskVorlageIds((prev) =>
-                                    prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
-                                  );
-                                }}
-                                className="mt-0.5 h-4 w-4 shrink-0 rounded border-0 border-none bg-zinc-100 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#f4f4f5_40%)]"
-                              />
-                              <label htmlFor={`task-${t.id}`} className="cursor-pointer text-sm">
-                                <span className="font-medium text-zinc-800">{t.title}</span>
-                                {t.description && (
-                                  <span className="block text-xs text-zinc-500">{t.description}</span>
-                                )}
-                              </label>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 pt-4">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-                >
-                  Abbrechen
-                </button>
-                {productModal !== "new" && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleSave(true, false)}
-                      disabled={saving}
-                      className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
-                    >
-                      Variante erstellen
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSave(false, true)}
-                      disabled={saving}
-                      className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
-                    >
-                      Ersetzen & Archivieren
-                    </button>
-                  </>
-                )}
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  {productModal === "new"
-                    ? "Neues Produkt speichern"
-                    : "Speichern"}
-                </button>
-              </div>
-
-              {productModal !== "new" && (
-                <section className="mt-6 border-t border-zinc-200 pt-4">
-                  <h4 className="mb-3 text-sm font-semibold text-zinc-700">
-                    Änderungshistorie
+              <div className="flex-1 overflow-y-auto p-6">
+                {/* 1. Basis-Infos */}
+                <section className="mb-6">
+                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 bg-zinc-50/80 px-3 py-2 text-sm font-semibold text-zinc-800">
+                    Basis-Infos
                   </h4>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-zinc-500">Produktvariante Titel</label>
+                      <input
+                        type="text"
+                        value={editingProduct.produktvarianteTitel ?? ""}
+                        onChange={(e) => setField("produktvarianteTitel", e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      />
+                      <p className="mt-1 text-xs text-zinc-500">z.B. Liewo 1/4 Seite, Liewo 1/2 Seite</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Kategorie</label>
+                      <select
+                        value={editingProduct.category ?? ""}
+                        onChange={(e) => setField("category", e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      >
+                        {CATEGORIES.map((c) => (
+                          <option key={c} value={c}>{categoryLabel(c)}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Verlag</label>
+                      <input
+                        type="text"
+                        value={editingProduct.verlag ?? ""}
+                        onChange={(e) => setField("verlag", e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Kanal (Werbeform)</label>
+                      <select
+                        value={editingProduct.kanal ?? ""}
+                        onChange={(e) => setField("kanal", e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      >
+                        <option value="">—</option>
+                        {KANAL_OPTIONS.map((k) => (
+                          <option key={k} value={k}>{k}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Produktgruppe</label>
+                      <input
+                        type="text"
+                        value={editingProduct.produktgruppe ?? ""}
+                        onChange={(e) => setField("produktgruppe", e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-zinc-500">Beispiel (Platzhalter für Bild)</label>
+                      <textarea
+                        value={editingProduct.beispielBild ?? ""}
+                        onChange={(e) => setField("beispielBild", e.target.value)}
+                        rows={2}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      />
+                      <p className="mt-1 text-xs text-zinc-500">Platzhalter für zukünftige Bildfunktion. Diese Funktion ist derzeit deaktiviert.</p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* 2. Placement & Kreativ-Specs */}
+                <section className="mb-6">
+                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 bg-zinc-50/80 px-3 py-2 text-sm font-semibold text-zinc-800">
+                    Placement &amp; Kreativ-Specs
+                  </h4>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-zinc-500">Platzierung</label>
+                      <textarea
+                        value={editingProduct.platzierung ?? ""}
+                        onChange={(e) => setField("platzierung", e.target.value)}
+                        rows={2}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Position</label>
+                      <input
+                        type="text"
+                        value={editingProduct.position ?? ""}
+                        onChange={(e) => setField("position", e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      />
+                      <p className="mt-1 text-xs text-zinc-500">z.B. Above the Fold – Homepage</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Ziel-Eignung</label>
+                      <select
+                        value={editingProduct.zielEignung ?? ""}
+                        onChange={(e) => setField("zielEignung", e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      >
+                        <option value="">—</option>
+                        {ZIEL_EIGNUNG_OPTIONS.map((z) => (
+                          <option key={z} value={z}>{z}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-zinc-500">Zusatzinformationen für diese Produktvariante</label>
+                      <textarea
+                        value={editingProduct.zusatzinformationen ?? ""}
+                        onChange={(e) => setField("zusatzinformationen", e.target.value)}
+                        rows={2}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      />
+                      <p className="mt-1 text-xs text-zinc-500">z.B. Werberadius: Liechtenstein</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Farbraum</label>
+                      <select
+                        value={editingProduct.creativeFarbe === "RGB" || editingProduct.creativeFarbe === "CMYK" ? editingProduct.creativeFarbe : ""}
+                        onChange={(e) => setField("creativeFarbe", e.target.value || null)}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      >
+                        <option value="">—</option>
+                        <option value="RGB">RGB</option>
+                        <option value="CMYK">CMYK</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Dateityp</label>
+                      <input
+                        type="text"
+                        value={editingProduct.creativeDateityp ?? ""}
+                        onChange={(e) => setField("creativeDateityp", e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      />
+                      <p className="mt-1 text-xs text-zinc-500">z.B. PDF</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Grösse</label>
+                      <div className="mt-1 flex rounded-lg border border-zinc-200">
+                        <input
+                          type="text"
+                          value={editingProduct.creativeGroesse ?? ""}
+                          onChange={(e) => setField("creativeGroesse", e.target.value)}
+                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500"
+                        />
+                        <select
+                          value={editingProduct.creativeGroesseEinheit ?? "px"}
+                          onChange={(e) => setField("creativeGroesseEinheit", e.target.value as "px" | "mm" | "cm")}
+                          className="rounded-r-lg border-0 bg-zinc-100 px-3 py-2 text-sm text-zinc-600 focus:ring-2 focus:ring-violet-500"
+                        >
+                          <option value="px">px</option>
+                          <option value="mm">mm</option>
+                          <option value="cm">cm</option>
+                        </select>
+                      </div>
+                      <p className="mt-1 text-xs text-zinc-500">z.B. 728 x 90 (px) oder 210 x 297 (mm)</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Typ</label>
+                      <input
+                        type="text"
+                        value={editingProduct.creativeTyp ?? ""}
+                        onChange={(e) => setField("creativeTyp", e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      />
+                      <p className="mt-1 text-xs text-zinc-500">z.B. Statischer Banner oder Animiert</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Creative Deadline</label>
+                      <div className="mt-1 flex rounded-lg border border-zinc-200">
+                        <span className="flex items-center rounded-l-lg bg-zinc-100 pl-3 pr-2 text-zinc-500" aria-hidden>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                            <line x1="16" x2="16" y1="2" y2="6" />
+                            <line x1="8" x2="8" y1="2" y2="6" />
+                            <line x1="3" x2="21" y1="10" y2="10" />
+                          </svg>
+                        </span>
+                        <input
+                          type="date"
+                          value={editingProduct.creativeDeadlineDate ?? ""}
+                          onChange={(e) => setField("creativeDeadlineDate", e.target.value || null)}
+                          className="min-w-0 flex-1 rounded-r-lg border-0 py-2 pr-3 pl-2 text-sm focus:ring-2 focus:ring-violet-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* 3. Preise & Budget */}
+                <section className="mb-6">
+                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 bg-zinc-50/80 px-3 py-2 text-sm font-semibold text-zinc-800">
+                    Preise &amp; Budget
+                  </h4>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Währung</label>
+                      <select
+                        value={editingProduct.waehrung ?? "CHF"}
+                        onChange={(e) => setField("waehrung", e.target.value as "CHF" | "EUR")}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      >
+                        <option value="CHF">CHF</option>
+                        <option value="EUR">EUR</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Laufzeit pro Einheit</label>
+                      <select
+                        value={editingProduct.laufzeitProEinheit ?? ""}
+                        onChange={(e) => setField("laufzeitProEinheit", e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      >
+                        {LAUFZEIT_OPTIONS.map((l) => (
+                          <option key={l} value={l}>{l}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Preis Brutto pro Einheit</label>
+                      <div className="mt-1 flex rounded-lg border border-zinc-200">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={editingProduct.preisBruttoChf ?? ""}
+                          onChange={(e) =>
+                            setField("preisBruttoChf", e.target.value === "" ? null : parseFloat(e.target.value))
+                          }
+                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500"
+                        />
+                        <span className="flex items-center rounded-r-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{editingProduct.waehrung ?? "CHF"}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Preis Netto pro Einheit</label>
+                      <div className="mt-1 flex rounded-lg border border-zinc-200">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={editingProduct.preisNettoChf ?? ""}
+                          onChange={(e) =>
+                            setField("preisNettoChf", e.target.value === "" ? null : parseFloat(e.target.value))
+                          }
+                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500"
+                        />
+                        <span className="flex items-center rounded-r-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{editingProduct.waehrung ?? "CHF"}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Preis Agenturservice pro Einheit</label>
+                      <div className="mt-1 flex rounded-lg border border-zinc-200">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={editingProduct.preisAgenturservice ?? ""}
+                          onChange={(e) =>
+                            setField("preisAgenturservice", e.target.value === "" ? null : parseFloat(e.target.value))
+                          }
+                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500"
+                        />
+                        <span className="flex items-center rounded-r-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{editingProduct.waehrung ?? "CHF"}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Mindestbudget</label>
+                      <div className="mt-1 flex rounded-lg border border-zinc-200">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={editingProduct.mindestbudget ?? ""}
+                          onChange={(e) =>
+                            setField("mindestbudget", e.target.value === "" ? null : parseFloat(e.target.value))
+                          }
+                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500"
+                        />
+                        <span className="flex items-center rounded-r-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{editingProduct.waehrung ?? "CHF"}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-500">Empfohlenes Medienbudget (optional)</label>
+                      <input
+                        type="text"
+                        value={editingProduct.empfohlenesMedienbudget ?? ""}
+                        onChange={(e) => setField("empfohlenesMedienbudget", e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-zinc-500">Buchungsvoraussetzung</label>
+                      <textarea
+                        value={editingProduct.buchungsvoraussetzung ?? ""}
+                        onChange={(e) => setField("buchungsvoraussetzung", e.target.value)}
+                        rows={2}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                      />
+                      <p className="mt-1 text-xs text-zinc-500">z.B. Meta Business Manager Setup</p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* 4. Automatisierung */}
+                <section className="mb-6">
+                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 bg-zinc-50/80 px-3 py-2 text-sm font-semibold text-zinc-800">
+                    Automatisierung
+                  </h4>
+                  <p className="mb-4 text-xs text-zinc-500">
+                    Tasks, die beim Hinzufügen dieses Produkts zu einem Mediaplan automatisch erstellt werden. Verwaltung: Einstellungen → Task-Vorlagen.
+                  </p>
+                  <div className="space-y-4">
+                    {Array.from(new Set(taskVorlagen.map((t) => t.category))).map((cat) => {
+                      const items = taskVorlagen.filter((t) => t.category === cat);
+                      return (
+                        <div key={cat}>
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                            {cat}
+                          </p>
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {items.map((t) => {
+                              const selected = selectedTaskVorlageIds.includes(t.id);
+                              return (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedTaskVorlageIds((prev) =>
+                                      prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
+                                    );
+                                  }}
+                                  className={`rounded-lg border px-3 py-2.5 text-left text-sm transition ${
+                                    selected
+                                      ? "border-violet-500 bg-violet-50 text-violet-900 ring-1 ring-violet-500/30"
+                                      : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50"
+                                  }`}
+                                >
+                                  <span className="font-medium">{t.title}</span>
+                                  {t.description && (
+                                    <span className="mt-0.5 block text-xs opacity-90">{t.description}</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                {productModal === "new" && (
+                  <section className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3">
+                    <label className="flex flex-wrap items-center gap-2 text-sm text-zinc-600">
+                      <span>Warnung bei Ähnlichkeit ab:</span>
+                      <select
+                        value={fuzzyMatchThreshold}
+                        onChange={(e) => setFuzzyMatchThreshold(Number(e.target.value))}
+                        className="rounded border border-zinc-200 bg-white px-2 py-1.5 text-zinc-900"
+                      >
+                        {FUZZY_MATCH_THRESHOLDS.map((t) => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Beim Speichern wird geprüft, ob ähnliche Produkte existieren. Je niedriger der Wert, desto mehr Treffer.
+                    </p>
+                  </section>
+                )}
+
+                {productModal !== "new" && (
+                  <section className="mt-4 border-t border-zinc-200 pt-4">
+                    <h4 className="mb-3 text-sm font-semibold text-zinc-700">
+                      Änderungshistorie
+                    </h4>
                   {aenderungshistorie.length === 0 ? (
                     <p className="text-sm text-zinc-500">
                       Noch keine Änderungen erfasst.
@@ -1595,9 +1630,108 @@ export default function ProduktePage() {
                       })}
                     </ul>
                   )}
-                </section>
-              )}
+                  </section>
+                )}
+              </div>
+              <div className="shrink-0 border-t border-zinc-200 bg-white px-6 py-4">
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                  >
+                    Abbrechen
+                  </button>
+                  {productModal !== "new" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleSave(true, false)}
+                        disabled={saving}
+                        className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+                      >
+                        Variante erstellen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSave(false, true)}
+                        disabled={saving}
+                        className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+                      >
+                        Ersetzen & Archivieren
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {productModal === "new" ? "Neues Produkt speichern" : "Speichern"}
+                  </button>
+                </div>
+              </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog: Ähnliche Produkte gefunden */}
+      {similarProductsDialog != null && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setSimilarProductsDialog(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-zinc-900">
+              Ähnliche Produkte gefunden
+            </h3>
+            <p className="mt-2 text-sm text-zinc-600">
+              Es gibt bereits {similarProductsDialog.similar.length} Produkt
+              {similarProductsDialog.similar.length === 1 ? "" : "e"}, die dem neuen sehr ähneln.
+              Trotzdem neu anlegen oder ein bestehendes verwenden?
+            </p>
+            <ul className="mt-4 max-h-60 space-y-2 overflow-y-auto">
+              {similarProductsDialog.similar.map(({ product, score }) => (
+                <li key={product.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProductModal(product.id);
+                      setEditingProduct({ ...product });
+                      setSimilarProductsDialog(null);
+                    }}
+                    className="flex w-full items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50/50 px-3 py-2 text-left text-sm hover:bg-violet-50 hover:border-violet-200"
+                  >
+                    <span className="font-medium text-zinc-900">
+                      {product.produktvarianteTitel ?? product.category ?? product.id}
+                    </span>
+                    <span className="shrink-0 text-xs text-zinc-500">
+                      {Math.round(score * 100)}% ähnlich
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSimilarProductsDialog(null)}
+                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={() => similarProductsDialog.onConfirmCreate()}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+              >
+                Trotzdem neu anlegen
+              </button>
+            </div>
           </div>
         </div>
       )}
