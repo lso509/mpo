@@ -324,7 +324,7 @@ export default function MediaplanDetailPage() {
           <div className="flex gap-2">
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-0 border-none bg-zinc-100 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#f4f4f5_40%)]"
+              className="h-4 w-4 rounded border-0 border-none bg-zinc-100 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#f4f4f5_40%)]"
               aria-label="Alle auswählen"
             />
             <button
@@ -345,7 +345,7 @@ export default function MediaplanDetailPage() {
               <div className="flex items-start gap-3">
                 <input
                   type="checkbox"
-                  className="mt-1 h-4 w-4 shrink-0 rounded border-0 border-none bg-zinc-100 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#f4f4f5_40%)]"
+                  className="mt-1 h-4 w-4 shrink-0 rounded border-0 border-none bg-zinc-100 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#f4f4f5_40%)]"
                 />
                 <span className="inline-block h-3 w-3 shrink-0 rounded-full bg-emerald-500" />
                 <div>

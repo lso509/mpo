@@ -23,7 +23,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-gt-flexa), var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --text-xs: 1rem;
   --text-sm: 1rem;
@@ -56,8 +56,13 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-gt-flexa), var(--font-geist-sans), system-ui, sans-serif;
   font-size: 1rem;
+}
+
+/* Hauptbereich: Hintergrundfarbe (Light Mode) */
+.main-layout-bg {
+  background: #EFEDE6;
 }
 
 /* Selects in Formularen gleiche Höhe wie Text-Inputs (Safari u.a.) */
@@ -86,6 +91,14 @@ select option {
     color: #ededed !important;
     background: #0a0a0a;
   }
+}
+
+/* Focus-Rahmen für Formularfelder: Lila statt Browser-Standard (gelb) */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid #8026FE;
+  outline-offset: 2px;
 }
 
 /* Switch (z. B. Automatisierungen ein/aus) */

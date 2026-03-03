@@ -849,7 +849,7 @@ export default function ProduktePage() {
     p.mindestbudget != null ? `CHF ${p.mindestbudget}` : "—";
 
   return (
-    <div className="flex gap-6 bg-zinc-100 dark:bg-zinc-900 p-6">
+    <div className="flex gap-6 p-6">
       <aside className="w-64 shrink-0 space-y-4">
         <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Filter</h3>
         <div>
@@ -862,7 +862,7 @@ export default function ProduktePage() {
                   id={`kategorie-${c}`}
                   checked={filterKategorien.includes(c)}
                   onChange={() => toggleFilter(setFilterKategorien, c)}
-                  className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#3f3f46_40%)]"
+                  className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#3f3f46_40%)]"
                 />
                   <label htmlFor={`kategorie-${c}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {categoryLabel(c)}
@@ -883,7 +883,7 @@ export default function ProduktePage() {
                     id={`verlag-${v}`}
                     checked={filterVerlage.includes(v)}
                     onChange={() => toggleFilter(setFilterVerlage, v)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#3f3f46_40%)]"
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#3f3f46_40%)]"
                   />
                   <label htmlFor={`verlag-${v}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {v}
@@ -905,7 +905,7 @@ export default function ProduktePage() {
                     id={`kanal-${k}`}
                     checked={filterKanal.includes(k)}
                     onChange={() => toggleFilter(setFilterKanal, k)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#3f3f46_40%)]"
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#3f3f46_40%)]"
                   />
                   <label htmlFor={`kanal-${k}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {k}
@@ -927,7 +927,7 @@ export default function ProduktePage() {
                     id={`ziel-${z}`}
                     checked={filterZielEignung.includes(z)}
                     onChange={() => toggleFilter(setFilterZielEignung, z)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#3f3f46_40%)]"
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#3f3f46_40%)]"
                   />
                   <label htmlFor={`ziel-${z}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {z}
@@ -949,7 +949,7 @@ export default function ProduktePage() {
                     id={`laufzeit-${l}`}
                     checked={filterLaufzeit.includes(l)}
                     onChange={() => toggleFilter(setFilterLaufzeit, l)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8b5cf6_40%,#3f3f46_40%)]"
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#3f3f46_40%)]"
                   />
                   <label htmlFor={`laufzeit-${l}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {l}
@@ -1270,7 +1270,7 @@ export default function ProduktePage() {
               <div className="flex-1 overflow-y-auto p-6">
                 {/* 1. Basis-Infos */}
                 <section className="mb-6">
-                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-800/80 px-3 py-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                  <h4 className="mb-3 rounded-lg border-b-2 border-[#8026FE] bg-[#8026FE]/10 dark:bg-[#8026FE]/20 px-3 py-2 text-sm font-semibold text-[#8026FE] dark:text-[#a566fe]">
                     Basis-Infos
                   </h4>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1342,7 +1342,7 @@ export default function ProduktePage() {
 
                 {/* 2. Placement & Kreativ-Specs */}
                 <section className="mb-6">
-                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-800/80 px-3 py-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                  <h4 className="mb-3 rounded-lg border-b-2 border-[#8026FE] bg-[#8026FE]/10 dark:bg-[#8026FE]/20 px-3 py-2 text-sm font-semibold text-[#8026FE] dark:text-[#a566fe]">
                     Placement &amp; Kreativ-Specs
                   </h4>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1417,12 +1417,12 @@ export default function ProduktePage() {
                           type="text"
                           value={editingProduct.creativeGroesse ?? ""}
                           onChange={(e) => setField("creativeGroesse", e.target.value)}
-                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500"
+                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-[#8026FE]"
                         />
                         <select
                           value={editingProduct.creativeGroesseEinheit ?? "px"}
                           onChange={(e) => setField("creativeGroesseEinheit", e.target.value as "px" | "mm" | "cm")}
-                          className="rounded-r-lg border-0 bg-zinc-100 px-3 py-2 text-sm text-zinc-600 focus:ring-2 focus:ring-violet-500"
+                          className="rounded-r-lg border-0 bg-zinc-100 px-3 py-2 text-sm text-zinc-600 focus:ring-2 focus:ring-[#8026FE]"
                         >
                           <option value="px">px</option>
                           <option value="mm">mm</option>
@@ -1456,7 +1456,7 @@ export default function ProduktePage() {
                           type="date"
                           value={editingProduct.creativeDeadlineDate ?? ""}
                           onChange={(e) => setField("creativeDeadlineDate", e.target.value || null)}
-                          className="min-w-0 flex-1 rounded-r-lg border-0 py-2 pr-3 pl-2 text-sm focus:ring-2 focus:ring-violet-500"
+                          className="min-w-0 flex-1 rounded-r-lg border-0 py-2 pr-3 pl-2 text-sm focus:ring-2 focus:ring-[#8026FE]"
                         />
                       </div>
                     </div>
@@ -1465,7 +1465,7 @@ export default function ProduktePage() {
 
                 {/* 3. Preise & Budget */}
                 <section className="mb-6">
-                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-800/80 px-3 py-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                  <h4 className="mb-3 rounded-lg border-b-2 border-[#8026FE] bg-[#8026FE]/10 dark:bg-[#8026FE]/20 px-3 py-2 text-sm font-semibold text-[#8026FE] dark:text-[#a566fe]">
                     Preise &amp; Budget
                   </h4>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1503,7 +1503,7 @@ export default function ProduktePage() {
                           onChange={(e) =>
                             setField("preisBruttoChf", e.target.value === "" ? null : parseFloat(e.target.value))
                           }
-                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500"
+                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-[#8026FE]"
                         />
                         <span className="flex items-center rounded-r-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{editingProduct.waehrung ?? "CHF"}</span>
                       </div>
@@ -1519,7 +1519,7 @@ export default function ProduktePage() {
                           onChange={(e) =>
                             setField("preisNettoChf", e.target.value === "" ? null : parseFloat(e.target.value))
                           }
-                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500"
+                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-[#8026FE]"
                         />
                         <span className="flex items-center rounded-r-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{editingProduct.waehrung ?? "CHF"}</span>
                       </div>
@@ -1535,7 +1535,7 @@ export default function ProduktePage() {
                           onChange={(e) =>
                             setField("preisAgenturservice", e.target.value === "" ? null : parseFloat(e.target.value))
                           }
-                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500"
+                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-[#8026FE]"
                         />
                         <span className="flex items-center rounded-r-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{editingProduct.waehrung ?? "CHF"}</span>
                       </div>
@@ -1551,7 +1551,7 @@ export default function ProduktePage() {
                           onChange={(e) =>
                             setField("mindestbudget", e.target.value === "" ? null : parseFloat(e.target.value))
                           }
-                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500"
+                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-[#8026FE]"
                         />
                         <span className="flex items-center rounded-r-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{editingProduct.waehrung ?? "CHF"}</span>
                       </div>
@@ -1580,7 +1580,7 @@ export default function ProduktePage() {
 
                 {/* 4. Automatisierung */}
                 <section className="mb-6">
-                  <h4 className="mb-3 rounded-lg border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-800/80 px-3 py-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                  <h4 className="mb-3 rounded-lg border-b-2 border-[#8026FE] bg-[#8026FE]/10 dark:bg-[#8026FE]/20 px-3 py-2 text-sm font-semibold text-[#8026FE] dark:text-[#a566fe]">
                     Automatisierung
                   </h4>
                   <p className="mb-4 text-xs text-zinc-600 dark:text-zinc-400">
