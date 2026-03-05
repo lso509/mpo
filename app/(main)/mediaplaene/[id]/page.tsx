@@ -503,7 +503,7 @@ function PositionListItem({
       stepKey === "1"
         ? (["Offen", "Freigegeben", "Erledigt", "N/A"] as const)
         : (["Offen", "Erledigt", "N/A"] as const);
-    const idx = order.indexOf(current);
+    const idx = (order as readonly string[]).indexOf(current);
     if (idx === -1) return order[0];
     return order[(idx + 1) % order.length];
   };
