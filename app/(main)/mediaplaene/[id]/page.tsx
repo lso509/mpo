@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { nochNichtImplementiert } from "@/lib/not-implemented";
+import { MediaplanPDFButton } from "@/components/MediaplanPDFButton";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1394,6 +1395,42 @@ export default function MediaplanDetailPage() {
     return { sumAgenturgebuehr, sumUmsatz, margeProzent };
   }, [positions]);
 
+  const pdfPayload = useMemo(() => {
+    if (!plan) return null;
+    const ap = [plan.kunde_ap_name, plan.kunde_ap_position].filter(Boolean).join(", ");
+    return {
+      kunde: {
+        name: plan.kunde_name ?? plan.client ?? "",
+        ansprechpartner: ap || "–",
+      },
+      kampagne: {
+        name: plan.campaign ?? "",
+        vonDatum: plan.date_range_start ?? "",
+        bisDatum: plan.date_range_end ?? "",
+      },
+      kundenberater:
+        plan.berater_name || plan.berater_email
+          ? {
+              name: plan.berater_name ?? "",
+              position: plan.berater_position ?? undefined,
+              email: plan.berater_email ?? undefined,
+              telefon: plan.berater_telefon ?? plan.berater_mobil ?? undefined,
+            }
+          : undefined,
+      positionen: positions.map((p) => ({
+        produkt: p.title || "–",
+        verlag: (p.produkt_id ? catalogProductMap[p.produkt_id]?.verlag : null) ?? "–",
+        zeitraum: [p.start_date, p.end_date].filter(Boolean).join(" – ") || "–",
+        laufzeit: p.menge_volumen ?? "–",
+        nettoChf: p.kundenpreis ?? 0,
+        bruttoChf: p.brutto ?? 0,
+        startDate: p.start_date ?? undefined,
+        endDate: p.end_date ?? undefined,
+      })),
+      erstelltAm: new Date().toLocaleDateString("de-CH"),
+    };
+  }, [plan, positions, catalogProductMap]);
+
   if (loading && !plan) {
     return (
       <div className="content-radius haupt-box flex min-h-[200px] items-center justify-center p-8">
@@ -1465,24 +1502,21 @@ export default function MediaplanDetailPage() {
         >
           Creative Übersicht senden ({positions.length})
         </button>
-        <button
-          type="button"
-          onClick={nochNichtImplementiert}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-        >
-          A3 PDF exportieren
-        </button>
+        <MediaplanPDFButton
+          payload={pdfPayload}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 disabled:opacity-60"
+        />
       </div>
 
       <div className="mb-4 grid gap-4 sm:grid-cols-2">
-        <div className="content-radius rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
+        <div className="content-radius border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
           <div className="mb-3 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-600 pb-2">
             <h4 className="text-base font-semibold text-zinc-950 dark:text-zinc-100">Kunden Infos</h4>
             {!editPlanInfo ? (
               <button
                 type="button"
                 onClick={() => setEditPlanInfo(true)}
-                className="rounded-full border border-zinc-200 dark:border-zinc-600 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                className="rounded-full border border-zinc-300 dark:border-zinc-600 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                 title="Bearbeiten"
                 aria-label="Bearbeiten"
               >
@@ -1555,7 +1589,7 @@ export default function MediaplanDetailPage() {
             )}
           </div>
         </div>
-        <div className="content-radius rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
+        <div className="content-radius border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
           <h4 className="mb-3 border-b border-zinc-200 dark:border-zinc-600 pb-2 text-base font-semibold text-zinc-950 dark:text-zinc-100">Kundenberater</h4>
           {!editPlanInfo ? (
             <div className="flex items-center gap-3">

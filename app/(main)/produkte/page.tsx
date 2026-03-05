@@ -789,12 +789,12 @@ export default function ProduktePage() {
               }}
               aria-hidden
             />
-            <input
+              <input
               type="range"
               min={BUDGET_MIN}
               max={BUDGET_MAX}
               step={100}
-              value={budgetMin}
+                value={budgetMin}
               onChange={(e) => {
                 const v = Math.round(Number(e.target.value) / 100) * 100;
                 setBudgetMin(Math.min(v, budgetMax));
@@ -802,20 +802,20 @@ export default function ProduktePage() {
               className="absolute inset-0 h-full w-full cursor-pointer"
               aria-label="Budget Minimum"
             />
-            <input
+              <input
               type="range"
               min={BUDGET_MIN}
               max={BUDGET_MAX}
               step={100}
-              value={budgetMax}
+                value={budgetMax}
               onChange={(e) => {
                 const v = Math.round(Number(e.target.value) / 100) * 100;
                 setBudgetMax(Math.max(v, budgetMin));
               }}
               className="absolute inset-0 h-full w-full cursor-pointer"
               aria-label="Budget Maximum"
-            />
-          </div>
+              />
+            </div>
           <p className="mt-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">
             CHF {budgetMin.toLocaleString("de-CH")} – CHF {budgetMax === BUDGET_MAX ? "10'000+" : budgetMax.toLocaleString("de-CH")}
           </p>
@@ -1092,7 +1092,7 @@ export default function ProduktePage() {
           </div>
         </div>
       )}
-    </div>
+                    </div>
   );
 }
 

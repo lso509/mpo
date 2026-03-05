@@ -66,7 +66,7 @@ body {
   font-size: 1rem;
 }
 
-/* Akzentfarbe (ersetzt Violett/Lila) + Layout-Hintergrund */
+/* Akzentfarbe (ersetzt Violett/Lila) + Layout-Hintergrund (Light) */
 :root {
   --accent: #FF6554;
   --accent-hover: #e55a4a;
@@ -74,14 +74,33 @@ body {
   --layout-bg: #EFEDE6;
   --haupt-box-bg: #E6E2D9;
 }
+
+/* Dark Mode: Navi + Header Hintergrund (muss nach :root mit Light-Werten stehen) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --layout-bg: #18181b;
+    --haupt-box-bg: #27272a;
+  }
+}
+.dark,
+html.dark {
+  --layout-bg: #18181b;
+  --haupt-box-bg: #27272a;
+}
+
 .main-layout-bg,
 .layout-bg {
   background: var(--layout-bg);
 }
-/* 40px Radius + 100% iOS Corner Smoothing (squircle) für Inhaltsboxen, Cards, Kategorieboxen */
+/* Inhaltsboxen, Cards: Squircle (40px) wo unterstützt, sonst 20px (z. B. Safari) */
 .content-radius {
   border-radius: 40px;
   corner-shape: squircle;
+}
+@supports not (corner-shape: squircle) {
+  .content-radius {
+    border-radius: 20px;
+  }
 }
 
 /* Hauptboxen (Sektionen); Produktboxen und Task-Karten bleiben weiss */
@@ -89,6 +108,11 @@ body {
   background: var(--haupt-box-bg);
   border-radius: 40px;
   corner-shape: squircle;
+}
+@supports not (corner-shape: squircle) {
+  .haupt-box {
+    border-radius: 20px;
+  }
 }
 
 /* Buttons: durchgehend Pill-Form (vollständig abgerundet) */
