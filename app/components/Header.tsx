@@ -3,8 +3,8 @@
 import { createClient } from "@/lib/supabase/client";
 import { nochNichtImplementiert } from "@/lib/not-implemented";
 import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { SearchField } from "./SearchField";
-import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 
 const iconClass = "h-5 w-5 shrink-0";
@@ -54,7 +54,9 @@ export function Header() {
   return (
     <header className="layout-bg flex shrink-0 items-center gap-0.5 py-2 pr-2 pl-2">
       <div className="flex min-w-0 flex-1 justify-center">
-        <SearchField />
+        <Suspense fallback={<div className="h-[54px] w-full max-w-2xl rounded-full bg-[var(--haupt-box-bg)] dark:bg-zinc-800 animate-pulse" />}>
+          <SearchField />
+        </Suspense>
       </div>
       <button
         type="button"
