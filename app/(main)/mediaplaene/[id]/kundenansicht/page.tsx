@@ -1,9 +1,9 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { useUser } from "@/hooks/useUser";
 import { nochNichtImplementiert } from "@/lib/not-implemented";
 import { MediaplanPDFButton } from "@/components/MediaplanPDFButton";
-import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -567,7 +567,7 @@ export default function MediaplanKundenansichtPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const { user } = useUser();
   const [aenderungshistorie, setAenderungshistorie] = useState<AenderungshistorieEntry[]>([]);
   const [editKundenInfo, setEditKundenInfo] = useState(false);
   const [savingKundenInfo, setSavingKundenInfo] = useState(false);
@@ -652,7 +652,7 @@ export default function MediaplanKundenansichtPage() {
     if (!planId) return;
     setSavingKundenInfo(true);
     const supabase = createClient();
-    const changedBy = currentUser?.user_metadata?.full_name ?? currentUser?.email ?? null;
+    const changedBy = user?.user_metadata?.full_name ?? user?.email ?? null;
     const { error: err } = await supabase
       .from("mediaplaene")
       .update({
@@ -681,13 +681,13 @@ export default function MediaplanKundenansichtPage() {
     await loadAenderungshistorie();
     setSavingKundenInfo(false);
     setEditKundenInfo(false);
-  }, [planId, kundenForm, currentUser, loadPlan, loadAenderungshistorie]);
+  }, [planId, kundenForm, user, loadPlan, loadAenderungshistorie]);
 
   const setFreigabeForPositions = useCallback(
     async (positionIds: string[], action: "freigabe" | "ablehnung") => {
       if (!planId) return;
       const supabase = createClient();
-      const changedBy = currentUser?.user_metadata?.full_name ?? currentUser?.email ?? null;
+      const changedBy = user?.user_metadata?.full_name ?? user?.email ?? null;
       const actionLabel = action === "freigabe" ? "freigegeben" : "abgelehnt";
       for (const id of positionIds) {
         const pos = positions.find((p) => p.id === id);
@@ -712,7 +712,7 @@ export default function MediaplanKundenansichtPage() {
       await loadAenderungshistorie();
       setSelectedPositionIds((prev) => prev.filter((id) => !positionIds.includes(id)));
     },
-    [planId, positions, currentUser, loadPositions, loadAenderungshistorie]
+    [planId, positions, user, loadPositions, loadAenderungshistorie]
   );
 
   const setFreigabe = useCallback(
@@ -739,15 +739,6 @@ export default function MediaplanKundenansichtPage() {
     }
     Promise.all([loadPlan(), loadPositions(), loadAenderungshistorie()]).finally(() => setLoading(false));
   }, [planId, loadPlan, loadPositions, loadAenderungshistorie]);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => setCurrentUser(user));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) =>
-      setCurrentUser(session?.user ?? null)
-    );
-    return () => subscription.unsubscribe();
-  }, []);
 
   useEffect(() => {
     const ids = [...new Set(positions.map((p) => p.produkt_id).filter(Boolean) as string[])];
@@ -819,6 +810,10 @@ export default function MediaplanKundenansichtPage() {
   const pdfPayload = useMemo(() => {
     if (!plan) return null;
     const ap = [plan.kunde_ap_name, plan.kunde_ap_position].filter(Boolean).join(", ");
+    // Kundenberater nur anzeigen, wenn am Plan hinterlegt
+    const beraterName = plan.berater_name ?? "";
+    const beraterEmail = plan.berater_email ?? "";
+    const hasBerater = !!(beraterName || beraterEmail);
     return {
       kunde: {
         name: plan.kunde_name ?? plan.client ?? "",
@@ -829,15 +824,14 @@ export default function MediaplanKundenansichtPage() {
         vonDatum: plan.date_range_start ?? "",
         bisDatum: plan.date_range_end ?? "",
       },
-      kundenberater:
-        plan.berater_name || plan.berater_email
-          ? {
-              name: plan.berater_name ?? "",
-              position: plan.berater_position ?? undefined,
-              email: plan.berater_email ?? undefined,
-              telefon: plan.berater_telefon ?? plan.berater_mobil ?? undefined,
-            }
-          : undefined,
+      kundenberater: hasBerater
+        ? {
+            name: beraterName,
+            position: plan.berater_position ?? undefined,
+            email: beraterEmail || undefined,
+            telefon: plan.berater_telefon ?? plan.berater_mobil ?? undefined,
+          }
+        : undefined,
       positionen: positions.map((p) => ({
         produkt: p.title || "–",
         verlag: (p.produkt_id ? catalogProductMap[p.produkt_id]?.verlag : null) ?? "–",
@@ -1017,25 +1011,16 @@ export default function MediaplanKundenansichtPage() {
           <h4 className="mb-3 border-b border-zinc-200 dark:border-zinc-600 pb-2 text-base font-semibold text-zinc-950 dark:text-zinc-100">Kundenberater</h4>
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-600">
-              {currentUser?.user_metadata?.avatar_url ?? currentUser?.user_metadata?.picture ? (
-                <img
-                  src={(currentUser.user_metadata?.avatar_url ?? currentUser.user_metadata?.picture) as string}
-                  alt=""
-                  className="h-full w-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <span className="flex h-full w-full items-center justify-center text-sm font-semibold text-zinc-600 dark:text-zinc-400">
-                  {currentUser ? beraterInitials(currentUser.email ?? undefined) : "—"}
-                </span>
-              )}
+              <span className="flex h-full w-full items-center justify-center text-sm font-semibold text-zinc-600 dark:text-zinc-400">
+                {plan.berater_name || plan.berater_email ? beraterInitials(plan.berater_email ?? plan.berater_name ?? undefined) : "—"}
+              </span>
             </div>
             <div className="min-w-0 text-sm">
               <p className="font-medium text-zinc-900 dark:text-zinc-100">
-                {currentUser?.user_metadata?.full_name ?? plan.berater_name ?? "—"}
+                {plan.berater_name ?? "—"}
               </p>
               <p className="text-zinc-600 dark:text-zinc-400">
-                {currentUser?.email ?? plan.berater_email ?? "—"}
+                {plan.berater_email ?? "—"}
               </p>
             </div>
           </div>

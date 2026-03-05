@@ -1,11 +1,11 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { useUser } from "@/hooks/useUser";
 import { nochNichtImplementiert } from "@/lib/not-implemented";
 import { useRouter } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense } from "react";
 import { SearchField } from "./SearchField";
-import type { User } from "@supabase/supabase-js";
 
 const iconClass = "h-5 w-5 shrink-0";
 
@@ -33,20 +33,15 @@ function initials(email: string | undefined): string {
 
 export function Header() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u));
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
-    return () => subscription.unsubscribe();
-  }, []);
+  const { user } = useUser();
 
   async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error("Abmelden fehlgeschlagen:", e);
+    }
     router.push("/login");
     router.refresh();
   }

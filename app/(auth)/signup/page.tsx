@@ -66,9 +66,9 @@ function SignupForm() {
   }
 
   return (
-    <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6">
       <h1 className="text-xl font-semibold text-zinc-900">Registrieren</h1>
-      <p className="mt-1 text-sm text-zinc-500">MediaPlan App</p>
+      <p className="mt-1 text-sm text-zinc-500">MediaIQ</p>
 
       {message && (
         <p
@@ -175,7 +175,7 @@ function SignupForm() {
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={<div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">Laden…</div>}>
+    <Suspense fallback={<div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6">Laden…</div>}>
       <SignupForm />
     </Suspense>
   );

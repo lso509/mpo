@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/kunden", label: "Kunden", exact: true },
   { href: "/kunden/lieferanten", label: "Lieferanten", exact: false },
+  { href: "/kunden/agentur", label: "Agentur-Mitarbeiter", exact: false },
 ] as const;
 
 export default function KundenLayout({

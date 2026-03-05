@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import { useUser } from "@/hooks/useUser";
 import { nochNichtImplementiert } from "@/lib/not-implemented";
 import { MediaplanPDFButton } from "@/components/MediaplanPDFButton";
 import Link from "next/link";
@@ -21,6 +21,13 @@ type AenderungshistorieEntry = {
   created_at: string;
   changed_by: string | null;
   change_description: string;
+};
+
+type AgencyUser = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  avatar_url?: string | null;
 };
 
 type MediaplanRow = {
@@ -76,6 +83,23 @@ type PositionRow = {
   agenturgebuehr?: number | null;
   prozess_status?: Record<string, string> | null;
 };
+
+/** Farbe für Prozessschritt 1–10: Verlauf von Hellrot (1) bis Hellgrün (10) */
+/** Verlauf Schritt 1 (Hellrot) → 10 (Hellgrün) in Projektfarben: Akzent-Koral + Grün (green-100). */
+function prozessSchrittFarbe(stepIndex1Based: number): { bg: string; bgDark: string } {
+  const t = Math.max(0, Math.min(1, (stepIndex1Based - 1) / 9));
+  // Light: Hellrot = Aufhellung der Akzentfarbe #FF6554 → #ffddd8; Hellgrün = green-100 #dcfce7
+  const r = Math.round(255 - 35 * t);
+  const g = Math.round(221 + 31 * t);
+  const b = Math.round(216 + 15 * t);
+  const hex = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+  // Dark: dunkle Töne passend zu --haupt-box-bg #27272a
+  const rDark = Math.round(74 - 48 * t);
+  const gDark = Math.round(40 + 6 * t);
+  const bDark = Math.round(37 - 6 * t);
+  const hexDark = `#${rDark.toString(16).padStart(2, "0")}${gDark.toString(16).padStart(2, "0")}${bDark.toString(16).padStart(2, "0")}`;
+  return { bg: hex, bgDark: hexDark };
+}
 
 const PROZESS_SCHRITTE: { key: string; label: string }[] = [
   { key: "1", label: "Freigabestatus" },
@@ -603,11 +627,18 @@ function PositionListItem({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400 sm:flex-nowrap">
-          {aktuellerOffenerSchritt && (
-            <span className="rounded bg-violet-100 dark:bg-violet-950/50 px-2 py-0.5 text-violet-800 dark:text-violet-200">
-              Offen: {aktuellerOffenerSchritt.label}
-            </span>
-          )}
+          {aktuellerOffenerSchritt && (() => {
+            const stepNum = Number(aktuellerOffenerSchritt.key) || 1;
+            const { bg, bgDark } = prozessSchrittFarbe(stepNum);
+            return (
+              <span
+                className="rounded px-2 py-0.5 bg-[var(--offen-bg)] dark:bg-[var(--offen-bg-dark)] text-zinc-800 dark:text-zinc-200"
+                style={{ "--offen-bg": bg, "--offen-bg-dark": bgDark } as React.CSSProperties}
+              >
+                Offen: {aktuellerOffenerSchritt.label}
+              </span>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <div className="text-right text-sm">
@@ -717,13 +748,18 @@ function PositionListItem({
                     const status = getProzessStatus(key);
                     const isDone = status === "Erledigt" || status === "Freigegeben";
                     const isNa = status === "N/A";
+                    const { bg, bgDark } = prozessSchrittFarbe(Number(key) || 1);
                     return (
                       <li
                         key={key}
                         onClick={() => handleProzessStepClick(key)}
-                        className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/80 ${
-                          !isDone && !isNa ? "bg-violet-50 dark:bg-violet-950/30" : ""
-                        }`}
+                        className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors hover:opacity-90 bg-[var(--step-bg)] dark:bg-[var(--step-bg-dark)]"
+                        style={
+                          {
+                            "--step-bg": bg,
+                            "--step-bg-dark": bgDark,
+                          } as React.CSSProperties
+                        }
                       >
                         <span className="text-zinc-800 dark:text-zinc-200">
                           {key}. {label}
@@ -995,6 +1031,7 @@ export default function MediaplanDetailPage() {
   const [catalogProductMap, setCatalogProductMap] = useState<Record<string, CatalogProduct>>({});
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
   const [editPlanInfo, setEditPlanInfo] = useState(false);
+  const [editKundenberater, setEditKundenberater] = useState(false);
   const [planForm, setPlanForm] = useState({
     client: "",
     status: "Entwurf",
@@ -1017,7 +1054,8 @@ export default function MediaplanDetailPage() {
   });
   const [savingPlan, setSavingPlan] = useState(false);
   const [aenderungshistorie, setAenderungshistorie] = useState<AenderungshistorieEntry[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const { user, role, loading: userLoading } = useUser();
+  const [agencyUsers, setAgencyUsers] = useState<AgencyUser[]>([]);
   const [statusConfirm, setStatusConfirm] = useState<"Aktiv" | "Entwurf" | null>(null);
   const [deleteConfirmPositionIds, setDeleteConfirmPositionIds] = useState<string[]>([]);
 
@@ -1090,10 +1128,10 @@ export default function MediaplanDetailPage() {
           kunde_email: planForm.kunde_email || null,
           kunde_telefon: planForm.kunde_telefon || null,
           berater_name: planForm.berater_name || null,
-          berater_position: planForm.berater_position || null,
+          berater_position: null,
           berater_email: planForm.berater_email || null,
           berater_telefon: planForm.berater_telefon || null,
-          berater_mobil: planForm.berater_mobil || null,
+          berater_mobil: null,
           kunde_ap_name: planForm.kunde_ap_name || null,
           kunde_ap_position: planForm.kunde_ap_position || null,
           kunde_ap_email: planForm.kunde_ap_email || null,
@@ -1105,6 +1143,7 @@ export default function MediaplanDetailPage() {
       if (err) setError(err.message);
       else await loadPlan();
       setEditPlanInfo(false);
+      setEditKundenberater(false);
     },
     [planId, plan, planForm, loadPlan]
   );
@@ -1161,14 +1200,26 @@ export default function MediaplanDetailPage() {
     Promise.all([loadPlan(), loadPositions(), loadAenderungshistorie()]).finally(() => setLoading(false));
   }, [planId, loadPlan, loadPositions, loadAenderungshistorie]);
 
+  const isAgency = (role?.toLowerCase?.() ?? "") === "agency";
+
+  // Agentur-User für Kundenberater-Auswahl per RPC laden (umgeht reserviertes Spaltenwort "role")
   useEffect(() => {
+    if (!isAgency) {
+      setAgencyUsers([]);
+      return;
+    }
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => setCurrentUser(user));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) =>
-      setCurrentUser(session?.user ?? null)
-    );
-    return () => subscription.unsubscribe();
-  }, []);
+    supabase
+      .rpc("get_agency_profiles")
+      .then(({ data, error }) => {
+        if (process.env.NODE_ENV === "development") {
+          console.log("[get_agency_profiles]", { error: error?.message ?? null, count: Array.isArray(data) ? data.length : 0, data });
+        }
+        if (error) console.warn("Agentur-User für Kundenberater:", error.message);
+        const list = Array.isArray(data) ? data : [];
+        setAgencyUsers(list as AgencyUser[]);
+      });
+  }, [isAgency]);
 
   useEffect(() => {
     const ids = [...new Set(positions.map((p) => p.produkt_id).filter(Boolean) as string[])];
@@ -1398,6 +1449,10 @@ export default function MediaplanDetailPage() {
   const pdfPayload = useMemo(() => {
     if (!plan) return null;
     const ap = [plan.kunde_ap_name, plan.kunde_ap_position].filter(Boolean).join(", ");
+    // Kundenberater nur anzeigen, wenn am Plan hinterlegt (kein Fallback auf eingeloggten User)
+    const beraterName = editPlanInfo ? (planForm.berater_name ?? plan.berater_name ?? "") : (plan.berater_name ?? "");
+    const beraterEmail = editPlanInfo ? (planForm.berater_email ?? plan.berater_email ?? "") : (plan.berater_email ?? "");
+    const hasBerater = !!(beraterName || beraterEmail);
     return {
       kunde: {
         name: plan.kunde_name ?? plan.client ?? "",
@@ -1408,15 +1463,14 @@ export default function MediaplanDetailPage() {
         vonDatum: plan.date_range_start ?? "",
         bisDatum: plan.date_range_end ?? "",
       },
-      kundenberater:
-        plan.berater_name || plan.berater_email
-          ? {
-              name: plan.berater_name ?? "",
-              position: plan.berater_position ?? undefined,
-              email: plan.berater_email ?? undefined,
-              telefon: plan.berater_telefon ?? plan.berater_mobil ?? undefined,
-            }
-          : undefined,
+      kundenberater: hasBerater
+        ? {
+            name: beraterName,
+            position: plan.berater_position ?? undefined,
+            email: beraterEmail || undefined,
+            telefon: (editPlanInfo ? planForm.berater_telefon : plan.berater_telefon) ?? plan.berater_mobil ?? undefined,
+          }
+        : undefined,
       positionen: positions.map((p) => ({
         produkt: p.title || "–",
         verlag: (p.produkt_id ? catalogProductMap[p.produkt_id]?.verlag : null) ?? "–",
@@ -1429,7 +1483,7 @@ export default function MediaplanDetailPage() {
       })),
       erstelltAm: new Date().toLocaleDateString("de-CH"),
     };
-  }, [plan, positions, catalogProductMap]);
+  }, [plan, positions, catalogProductMap, editPlanInfo, planForm.berater_name, planForm.berater_email, planForm.berater_telefon]);
 
   if (loading && !plan) {
     return (
@@ -1527,7 +1581,7 @@ export default function MediaplanDetailPage() {
               </button>
             ) : (
               <div className="flex gap-2">
-                <button type="button" onClick={() => setEditPlanInfo(false)} className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700">Abbrechen</button>
+                <button type="button" onClick={() => { setEditPlanInfo(false); setEditKundenberater(false); }} className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700">Abbrechen</button>
                 <button type="button" onClick={() => updatePlan()} disabled={savingPlan} className="rounded-full bg-[#FF6554] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#e55a4a] disabled:opacity-60">{savingPlan ? "Speichern…" : "Speichern"}</button>
               </div>
             )}
@@ -1590,41 +1644,91 @@ export default function MediaplanDetailPage() {
           </div>
         </div>
         <div className="content-radius border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
-          <h4 className="mb-3 border-b border-zinc-200 dark:border-zinc-600 pb-2 text-base font-semibold text-zinc-950 dark:text-zinc-100">Kundenberater</h4>
-          {!editPlanInfo ? (
+          <div className="mb-3 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-600 pb-2">
+            <h4 className="text-base font-semibold text-zinc-950 dark:text-zinc-100">Kundenberater</h4>
+            {!editPlanInfo && !editKundenberater && isAgency && (
+              <button
+                type="button"
+                onClick={() => setEditKundenberater(true)}
+                className="rounded-full border border-zinc-300 dark:border-zinc-600 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                title="Bearbeiten"
+                aria-label="Kundenberater bearbeiten"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                </svg>
+              </button>
+            )}
+          </div>
+          {!editPlanInfo && !editKundenberater ? (
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-600">
-                {currentUser?.user_metadata?.avatar_url ?? currentUser?.user_metadata?.picture ? (
-                  <img
-                    src={(currentUser.user_metadata?.avatar_url ?? currentUser.user_metadata?.picture) as string}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <span className="flex h-full w-full items-center justify-center text-sm font-semibold text-zinc-600 dark:text-zinc-400">
-                    {currentUser ? beraterInitials(currentUser.email ?? undefined) : "—"}
-                  </span>
-                )}
+                {(() => {
+                  const beraterAvatarUrl = agencyUsers.find((u) => u.email === plan.berater_email || u.full_name === plan.berater_name)?.avatar_url;
+                  if (beraterAvatarUrl) {
+                    return (
+                      <img
+                        src={beraterAvatarUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    );
+                  }
+                  return (
+                    <span className="flex h-full w-full items-center justify-center text-sm font-semibold text-zinc-600 dark:text-zinc-400">
+                      {plan.berater_name || plan.berater_email ? beraterInitials(plan.berater_email ?? plan.berater_name ?? undefined) : "—"}
+                    </span>
+                  );
+                })()}
               </div>
               <div className="min-w-0 text-sm">
                 <p className="font-medium text-zinc-900 dark:text-zinc-100">
-                  {currentUser?.user_metadata?.full_name ?? plan.berater_name ?? "—"}
+                  {plan.berater_name ?? "—"}
                 </p>
                 <p className="text-zinc-600 dark:text-zinc-400">
-                  {currentUser?.email ?? plan.berater_email ?? "—"}
+                  {plan.berater_email ?? "—"}
                 </p>
               </div>
             </div>
           ) : (
             <div className="space-y-3 text-sm">
               <label className="block">
-                <span className="block text-xs text-zinc-500 dark:text-zinc-400">Name</span>
-                <input type="text" value={planForm.berater_name} onChange={(e) => setPlanForm((f) => ({ ...f, berater_name: e.target.value }))} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="Sarah Müller" />
+                <span className="block text-xs text-zinc-500 dark:text-zinc-400">Kundenberater aus App-Usern wählen</span>
+                <select
+                  value={agencyUsers.find((u) => u.email === planForm.berater_email || u.full_name === planForm.berater_name)?.id ?? ""}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const user = agencyUsers.find((u) => u.id === id);
+                    if (user) {
+                      setPlanForm((f) => ({
+                        ...f,
+                        berater_name: user.full_name ?? "",
+                        berater_email: user.email ?? "",
+                      }));
+                    } else {
+                      setPlanForm((f) => ({ ...f, berater_name: "", berater_email: "" }));
+                    }
+                  }}
+                  className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+                >
+                  <option value="">— Keiner / manuell eingeben</option>
+                  {agencyUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name || u.email || u.id}
+                      {u.email && u.full_name ? ` (${u.email})` : u.email ? ` – ${u.email}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {agencyUsers.length === 0 && (
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    Keine Agentur-User geladen. In der Konsole (F12) prüfen, ob die RPC get_agency_profiles einen Fehler meldet.
+                  </p>
+                )}
               </label>
               <label className="block">
-                <span className="block text-xs text-zinc-500 dark:text-zinc-400">Position</span>
-                <input type="text" value={planForm.berater_position} onChange={(e) => setPlanForm((f) => ({ ...f, berater_position: e.target.value }))} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="Senior Account Manager" />
+                <span className="block text-xs text-zinc-500 dark:text-zinc-400">Name</span>
+                <input type="text" value={planForm.berater_name} onChange={(e) => setPlanForm((f) => ({ ...f, berater_name: e.target.value }))} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="z. B. Sarah Müller" />
               </label>
               <label className="block">
                 <span className="block text-xs text-zinc-500 dark:text-zinc-400">E-Mail</span>
@@ -1634,10 +1738,36 @@ export default function MediaplanDetailPage() {
                 <span className="block text-xs text-zinc-500 dark:text-zinc-400">Telefon</span>
                 <input type="text" value={planForm.berater_telefon} onChange={(e) => setPlanForm((f) => ({ ...f, berater_telefon: e.target.value }))} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="+41 44 123 45 67" />
               </label>
-              <label className="block">
-                <span className="block text-xs text-zinc-500 dark:text-zinc-400">Mobil</span>
-                <input type="text" value={planForm.berater_mobil} onChange={(e) => setPlanForm((f) => ({ ...f, berater_mobil: e.target.value }))} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="+41 79 123 45 67" />
-              </label>
+              {editKundenberater && !editPlanInfo && (
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlanForm((f) => ({
+                        ...f,
+                        berater_name: plan.berater_name ?? "",
+                        berater_email: plan.berater_email ?? "",
+                        berater_telefon: plan.berater_telefon ?? "",
+                      }));
+                      setEditKundenberater(false);
+                    }}
+                    className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await updatePlan();
+                      setEditKundenberater(false);
+                    }}
+                    disabled={savingPlan}
+                    className="rounded-full bg-[#FF6554] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#e55a4a] disabled:opacity-60"
+                  >
+                    {savingPlan ? "Speichern…" : "Speichern"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

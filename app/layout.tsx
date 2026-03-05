@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MediaPlan App – Agentur-Dashboard",
-  description: "MediaPlan App für Agenturen",
+  title: "MediaIQ – Agentur-Dashboard",
+  description: "MediaIQ für Agenturen",
 };
 
 export default function RootLayout({

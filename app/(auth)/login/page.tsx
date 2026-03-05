@@ -55,23 +55,32 @@ function LoginForm() {
   }
 
   return (
-    <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-      <h1 className="text-xl font-semibold text-zinc-900">Anmelden</h1>
-      <p className="mt-1 text-sm text-zinc-500">MediaPlan App</p>
-
+    <div className="flex w-full max-w-sm flex-col items-center">
+      <div className="mb-6 flex justify-center">
+        <img
+          src="/mediaiq.svg"
+          alt="MediaIQ"
+          className="h-auto w-full max-w-[120px] dark:opacity-95"
+          width={146}
+          height={114}
+        />
+      </div>
+      <div className="w-full content-radius haupt-box border border-zinc-200 dark:border-zinc-700 p-6 dark:bg-zinc-800/80">
       {message && (
-        <p
-          className={`mt-4 rounded-lg px-3 py-2 text-sm ${
-            message.type === "error" ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"
+        <div
+          className={`mt-4 content-radius border px-3 py-2 text-sm ${
+            message.type === "error"
+              ? "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200"
+              : "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200"
           }`}
         >
           {message.text}
-        </p>
+        </div>
       )}
 
       <form onSubmit={handleEmailLogin} className="mt-6 space-y-4">
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-zinc-700">
+          <label htmlFor="email" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
             E-Mail
           </label>
           <input
@@ -81,11 +90,11 @@ function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+            className="mt-1 w-full rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
           />
         </div>
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-zinc-700">
+          <label htmlFor="password" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
             Passwort
           </label>
           <input
@@ -95,24 +104,24 @@ function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+            className="mt-1 w-full rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-[#FF6554] px-4 py-2 text-sm font-medium text-white hover:bg-[#e55a4a] disabled:opacity-50"
+          className="w-full rounded-full bg-[#FF6554] px-4 py-2 text-sm font-medium text-white hover:bg-[#e55a4a] disabled:opacity-50 dark:hover:bg-[#ff8877]"
         >
           {loading ? "Wird angemeldet…" : "Anmelden"}
         </button>
       </form>
 
-      <div className="mt-4 border-t border-zinc-200 pt-4">
+      <div className="mt-4 border-t border-zinc-200 dark:border-zinc-700 pt-4">
         <button
           type="button"
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24">
             <path
@@ -136,19 +145,34 @@ function LoginForm() {
         </button>
       </div>
 
-      <p className="mt-4 text-center text-sm text-zinc-500">
+      <p className="mt-4 text-center text-sm text-zinc-600 dark:text-zinc-400">
         Noch kein Konto?{" "}
-        <Link href={`/signup${redirect !== "/dashboard" ? `?redirect=${encodeURIComponent(redirect)}` : ""}`} className="font-medium text-[#FF6554] hover:text-[#e55a4a]">
+        <Link
+          href={`/signup${redirect !== "/dashboard" ? `?redirect=${encodeURIComponent(redirect)}` : ""}`}
+          className="font-medium text-[#FF6554] hover:text-[#e55a4a] dark:hover:text-[#ff8877]"
+        >
           Registrieren
         </Link>
       </p>
+      </div>
     </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">Laden…</div>}>
+    <Suspense
+      fallback={
+        <div className="flex w-full max-w-sm flex-col items-center">
+          <div className="mb-6 flex justify-center">
+            <img src="/mediaiq.svg" alt="" className="h-auto w-full max-w-[120px] dark:opacity-95" width={146} height={114} />
+          </div>
+          <div className="w-full content-radius haupt-box border border-zinc-200 dark:border-zinc-700 p-6 dark:bg-zinc-800/80">
+            <p className="text-zinc-500 dark:text-zinc-400">Laden…</p>
+          </div>
+        </div>
+      }
+    >
       <LoginForm />
     </Suspense>
   );
