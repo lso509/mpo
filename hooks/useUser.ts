@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 
 export function useUser() {
@@ -14,7 +14,7 @@ export function useUser() {
     let unsubscribe: (() => void) | undefined;
 
     async function run() {
-      let supabase;
+      let supabase: SupabaseClient;
       try {
         supabase = createClient();
       } catch (e) {
