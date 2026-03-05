@@ -21,12 +21,18 @@ export default function NeuerMediaplanPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase
-      .from("kunden")
-      .select("id, name")
-      .order("name")
-      .then(({ data }) => setKunden((data ?? []) as Kunde[]))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase.from("kunden").select("id, name").order("name");
+        if (!cancelled) setKunden((data ?? []) as Kunde[]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
