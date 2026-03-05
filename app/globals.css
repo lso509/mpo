@@ -165,12 +165,13 @@ textarea:focus {
   --color-grey: #cccccc;
   --color-green: var(--accent);
 }
+/* Switch-Bahn und Knopf explizit in Pillenform, !important gegen andere Overrides */
 .switch .slider {
   display: inline-block;
   width: var(--button-width);
   height: var(--button-height);
   background-color: var(--color-grey);
-  border-radius: 5px;
+  border-radius: 9999px !important;
   position: relative;
   transition: background-color 0.2s ease-out;
 }
@@ -180,7 +181,7 @@ textarea:focus {
   width: var(--toggle-diameter);
   height: var(--toggle-diameter);
   background-color: #fff;
-  border-radius: 50%;
+  border-radius: 50% !important;
   position: absolute;
   top: var(--button-toggle-offset);
   left: 0;
@@ -196,4 +197,50 @@ textarea:focus {
 }
 .switch input[type="checkbox"] {
   display: none;
+}
+
+/* Budget Dual-Range-Slider (zwei Thumbs, Skala 0–10000) */
+.budget-slider input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.budget-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  cursor: pointer;
+  position: relative;
+  z-index: 10;
+}
+.budget-slider input[type="range"]::-webkit-slider-runnable-track {
+  background: transparent;
+}
+.budget-slider input[type="range"]::-moz-range-thumb {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  cursor: pointer;
+  position: relative;
+  z-index: 10;
+}
+.budget-slider input[type="range"]::-moz-range-track {
+  background: transparent;
+}
+.budget-slider input[type="range"]:focus {
+  outline: none;
+}
+.budget-slider input[type="range"]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.budget-slider input[type="range"]:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 2px var(--accent);
 }

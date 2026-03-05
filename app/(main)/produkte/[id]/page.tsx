@@ -267,15 +267,16 @@ export default function ProduktBearbeitenPage() {
   }
 
   return (
-    <div className="content-radius haupt-box flex h-[calc(100vh-11rem)] min-h-0 flex-col border border-zinc-200 dark:border-zinc-700 shadow-none mb-10">
-      <h2 className="shrink-0 border-b border-zinc-200 dark:border-zinc-700 px-6 py-4 text-xl font-semibold text-zinc-950 dark:text-zinc-100">
+    <>
+      <h2 className="mb-4 text-xl font-semibold text-zinc-950 dark:text-zinc-100">
         {isNew ? "Neues Produkt" : "Produkt bearbeiten"}
       </h2>
       {error && (
-        <div className="shrink-0 border-b border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 px-6 py-2 text-sm text-red-700 dark:text-red-300">
+        <div className="mb-4 rounded-2xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 px-4 py-2 text-sm text-red-700 dark:text-red-300">
           {error}
         </div>
       )}
+      <div className="content-radius haupt-box flex h-[calc(100vh-11rem)] min-h-0 flex-col border border-zinc-200 dark:border-zinc-700 shadow-none mb-10">
       <ProductForm
         product={product}
         setField={setField}
@@ -291,6 +292,7 @@ export default function ProduktBearbeitenPage() {
         fuzzyMatchThreshold={fuzzyMatchThreshold}
         setFuzzyMatchThreshold={setFuzzyMatchThreshold}
       />
+      </div>
 
       {/* Dialog: Ähnliche Produkte */}
       {similarDialog != null && (
@@ -321,7 +323,7 @@ export default function ProduktBearbeitenPage() {
               <button
                 type="button"
                 onClick={() => setSimilarDialog(null)}
-                className="rounded-full border border-zinc-200 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
               >
                 Abbrechen
               </button>
@@ -336,6 +338,6 @@ export default function ProduktBearbeitenPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

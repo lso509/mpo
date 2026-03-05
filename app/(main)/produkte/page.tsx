@@ -454,8 +454,10 @@ export default function ProduktePage() {
   const [filterKanal, setFilterKanal] = useState<string[]>([]);
   const [filterZielEignung, setFilterZielEignung] = useState<string[]>([]);
   const [filterLaufzeit, setFilterLaufzeit] = useState<string[]>([]);
-  const [budgetMin, setBudgetMin] = useState("");
-  const [budgetMax, setBudgetMax] = useState("");
+  const BUDGET_MIN = 0;
+  const BUDGET_MAX = 10000;
+  const [budgetMin, setBudgetMin] = useState(BUDGET_MIN);
+  const [budgetMax, setBudgetMax] = useState(BUDGET_MAX);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -637,13 +639,8 @@ export default function ProduktePage() {
     if (filterLaufzeit.length > 0 && (p.laufzeitProEinheit == null || !filterLaufzeit.includes(p.laufzeitProEinheit)))
       return false;
     const budgetVal = p.mindestbudget ?? p.preisNettoChf ?? null;
-    if (budgetMin !== "") {
-      const min = Number(budgetMin);
-      if (!Number.isNaN(min) && (budgetVal == null || budgetVal < min)) return false;
-    }
-    if (budgetMax !== "") {
-      const max = Number(budgetMax);
-      if (!Number.isNaN(max) && (budgetVal == null || budgetVal > max)) return false;
+    if (budgetMin > BUDGET_MIN || budgetMax < BUDGET_MAX) {
+      if (budgetVal != null && (budgetVal < budgetMin || budgetVal > budgetMax)) return false;
     }
     return true;
   });
@@ -781,35 +778,47 @@ export default function ProduktePage() {
         )}
 
         <div>
-          <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Budget (CHF)</p>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <label htmlFor="budget-min" className="shrink-0 text-xs text-zinc-600 dark:text-zinc-400 w-8">Min</label>
-              <input
-                id="budget-min"
-                type="number"
-                min={0}
-                step={1}
-                placeholder="0"
-                value={budgetMin}
-                onChange={(e) => setBudgetMin(e.target.value)}
-                className="w-full rounded border border-zinc-200 dark:border-zinc-600 px-2 py-1.5 text-sm"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <label htmlFor="budget-max" className="shrink-0 text-xs text-zinc-600 dark:text-zinc-400 w-8">Max</label>
-              <input
-                id="budget-max"
-                type="number"
-                min={0}
-                step={1}
-                placeholder="∞"
-                value={budgetMax}
-                onChange={(e) => setBudgetMax(e.target.value)}
-                className="w-full rounded border border-zinc-200 dark:border-zinc-600 px-2 py-1.5 text-sm"
-              />
-            </div>
+          <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Budget</p>
+          <div className="budget-slider relative h-6 w-full px-1">
+            <div className="absolute left-0 right-0 top-1/2 h-2 w-full -translate-y-1/2 rounded-full bg-zinc-200 dark:bg-zinc-700" aria-hidden />
+            <div
+              className="absolute left-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-[#FF6554] dark:bg-[#ff8877]"
+              style={{
+                left: `${(budgetMin / BUDGET_MAX) * 100}%`,
+                width: `${((budgetMax - budgetMin) / BUDGET_MAX) * 100}%`,
+              }}
+              aria-hidden
+            />
+            <input
+              type="range"
+              min={BUDGET_MIN}
+              max={BUDGET_MAX}
+              step={100}
+              value={budgetMin}
+              onChange={(e) => {
+                const v = Math.round(Number(e.target.value) / 100) * 100;
+                setBudgetMin(Math.min(v, budgetMax));
+              }}
+              className="absolute inset-0 h-full w-full cursor-pointer"
+              aria-label="Budget Minimum"
+            />
+            <input
+              type="range"
+              min={BUDGET_MIN}
+              max={BUDGET_MAX}
+              step={100}
+              value={budgetMax}
+              onChange={(e) => {
+                const v = Math.round(Number(e.target.value) / 100) * 100;
+                setBudgetMax(Math.max(v, budgetMin));
+              }}
+              className="absolute inset-0 h-full w-full cursor-pointer"
+              aria-label="Budget Maximum"
+            />
           </div>
+          <p className="mt-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+            CHF {budgetMin.toLocaleString("de-CH")} – CHF {budgetMax === BUDGET_MAX ? "10'000+" : budgetMax.toLocaleString("de-CH")}
+          </p>
         </div>
 
       </aside>
@@ -1068,7 +1077,7 @@ export default function ProduktePage() {
               <button
                 type="button"
                 onClick={() => setDeleteConfirmId(null)}
-                className="rounded-full border border-zinc-200 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
               >
                 Abbrechen
               </button>

@@ -65,10 +65,10 @@ export function ProductForm({
         onSave(false, false);
       }}
     >
-      <div className="p-6 pb-32">
+      <div className="p-6 pb-32 space-y-6">
         {/* 1. Basis-Infos */}
-        <section className="mb-6">
-          <h4 className="mb-3 rounded-lg border-b-2 border-[#FF6554] bg-[#FF6554]/10 dark:bg-[#FF6554]/20 px-3 py-2 text-sm font-semibold text-[#FF6554] dark:text-[#ff8877]">
+        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
+          <h4 className="mb-3 text-lg font-semibold text-zinc-950 dark:text-zinc-100">
             Basis-Infos
           </h4>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -139,8 +139,8 @@ export function ProductForm({
         </section>
 
         {/* 2. Placement & Kreativ-Specs */}
-        <section className="mb-6">
-          <h4 className="mb-3 rounded-lg border-b-2 border-[#FF6554] bg-[#FF6554]/10 dark:bg-[#FF6554]/20 px-3 py-2 text-sm font-semibold text-[#FF6554] dark:text-[#ff8877]">
+        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
+          <h4 className="mb-3 text-lg font-semibold text-zinc-950 dark:text-zinc-100">
             Placement &amp; Kreativ-Specs
           </h4>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -258,8 +258,8 @@ export function ProductForm({
         </section>
 
         {/* 3. Preise & Budget */}
-        <section className="mb-6">
-          <h4 className="mb-3 rounded-lg border-b-2 border-[#FF6554] bg-[#FF6554]/10 dark:bg-[#FF6554]/20 px-3 py-2 text-sm font-semibold text-[#FF6554] dark:text-[#ff8877]">
+        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
+          <h4 className="mb-3 text-lg font-semibold text-zinc-950 dark:text-zinc-100">
             Preise &amp; Budget
           </h4>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -364,8 +364,8 @@ export function ProductForm({
         </section>
 
         {/* 4. Automatisierung */}
-        <section className="mb-6">
-          <h4 className="mb-3 rounded-lg border-b-2 border-[#FF6554] bg-[#FF6554]/10 dark:bg-[#FF6554]/20 px-3 py-2 text-sm font-semibold text-[#FF6554] dark:text-[#ff8877]">
+        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
+          <h4 className="mb-3 text-lg font-semibold text-zinc-950 dark:text-zinc-100">
             Automatisierung
           </h4>
           <div className="space-y-4">
@@ -490,8 +490,8 @@ export function ProductForm({
         )}
 
         {!isNew && productId && (
-          <section className="mt-4 border-t border-zinc-200 dark:border-zinc-700 pt-4">
-            <h4 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">Änderungshistorie</h4>
+          <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
+            <h4 className="mb-3 text-lg font-semibold text-zinc-950 dark:text-zinc-100">Änderungshistorie</h4>
             {aenderungshistorie.length === 0 ? (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">Noch keine Änderungen erfasst.</p>
             ) : (
@@ -520,12 +520,12 @@ export function ProductForm({
         )}
       </div>
 
-      <div className="sticky bottom-0 z-10 shrink-0 px-6 pt-6 pb-8">
+      <div className="sticky z-10 shrink-0 px-6 pt-6 pb-8" style={{ bottom: "50px" }}>
         <div className="flex flex-wrap justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-full border border-zinc-200 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
           >
             Abbrechen
           </button>

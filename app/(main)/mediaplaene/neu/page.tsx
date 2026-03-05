@@ -68,25 +68,26 @@ export default function NeuerMediaplanPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-semibold text-zinc-950">
+    <>
+      <h1 className="mb-4 text-xl font-semibold text-zinc-950 dark:text-zinc-100">
         Neuer Mediaplan
       </h1>
-      <p className="text-zinc-600">
+      <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
         Kunden auswählen, Zeitraum und Kampagnenname eingeben.
       </p>
 
       {loading ? (
-        <p className="text-zinc-500">Kunden werden geladen…</p>
+        <p className="text-zinc-500 dark:text-zinc-400">Kunden werden geladen…</p>
       ) : (
-        <form onSubmit={handleSubmit} className="content-radius space-y-4 border border-zinc-200 bg-white p-6">
+        <div className="content-radius haupt-box border border-zinc-200 dark:border-zinc-700 p-4 shadow-none sm:p-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <div className="rounded-2xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 px-4 py-2 text-sm text-red-700 dark:text-red-300">
               {error}
             </div>
           )}
           <div>
-            <label htmlFor="kunde" className="block text-sm font-medium text-zinc-700">
+            <label htmlFor="kunde" className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
               Kunde
             </label>
             <select
@@ -97,7 +98,7 @@ export default function NeuerMediaplanPage() {
                 const k = kunden.find((x) => x.id === e.target.value);
                 if (k && !client) setClient(k.name);
               }}
-              className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-zinc-900"
+              className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
             >
               <option value="">— Kunde wählen —</option>
               {kunden.map((k) => (
@@ -108,7 +109,7 @@ export default function NeuerMediaplanPage() {
             </select>
           </div>
           <div>
-            <label htmlFor="client" className="block text-sm font-medium text-zinc-700">
+            <label htmlFor="client" className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
               Unternehmen / Anzeigename
             </label>
             <input
@@ -117,11 +118,11 @@ export default function NeuerMediaplanPage() {
               value={client}
               onChange={(e) => setClient(e.target.value)}
               placeholder="z. B. Salt, FL1"
-              className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-zinc-900"
+              className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
             />
           </div>
           <div>
-            <label htmlFor="campaign" className="block text-sm font-medium text-zinc-700">
+            <label htmlFor="campaign" className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
               Kampagne *
             </label>
             <input
@@ -131,12 +132,12 @@ export default function NeuerMediaplanPage() {
               onChange={(e) => setCampaign(e.target.value)}
               required
               placeholder="z. B. Q1 2026 - Digitale Transformation"
-              className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-zinc-900"
+              className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="date_start" className="block text-sm font-medium text-zinc-700">
+              <label htmlFor="date_start" className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
                 Laufzeit Start
               </label>
               <input
@@ -144,11 +145,11 @@ export default function NeuerMediaplanPage() {
                 type="date"
                 value={dateRangeStart}
                 onChange={(e) => setDateRangeStart(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-zinc-900"
+                className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
               />
             </div>
             <div>
-              <label htmlFor="date_end" className="block text-sm font-medium text-zinc-700">
+              <label htmlFor="date_end" className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
                 Laufzeit Ende
               </label>
               <input
@@ -156,7 +157,7 @@ export default function NeuerMediaplanPage() {
                 type="date"
                 value={dateRangeEnd}
                 onChange={(e) => setDateRangeEnd(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-zinc-900"
+                className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
               />
             </div>
           </div>
@@ -170,20 +171,21 @@ export default function NeuerMediaplanPage() {
             </button>
             <Link
               href="/mediaplaene"
-              className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              className="inline-flex items-center rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
             >
               Abbrechen
             </Link>
           </div>
         </form>
+        </div>
       )}
 
       <Link
         href="/mediaplaene"
-        className="inline-block text-sm text-[#FF6554] hover:underline"
+        className="mt-4 inline-block text-sm text-[#FF6554] hover:underline"
       >
         ← Zurück zur Liste
       </Link>
-    </div>
+    </>
   );
 }

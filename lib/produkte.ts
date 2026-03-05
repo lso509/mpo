@@ -13,6 +13,7 @@ export const CATEGORIES = [
 
 export function categoryLabel(category: string): string {
   if (!category) return category;
+  if (category === "ÖV") return "ÖV";
   return category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
 }
 

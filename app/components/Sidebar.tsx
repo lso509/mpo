@@ -39,8 +39,11 @@ const icons = {
     </svg>
   ),
   gantt: (
-    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5v14M4 5h16M4 9h6M4 13h10M4 17h8" />
+    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}>
+      <path d="M6 4v16h16" />
+      <path d="M10 5h4" />
+      <path d="M12 9.5h6" />
+      <path d="M14 14h6" />
     </svg>
   ),
   message: (
