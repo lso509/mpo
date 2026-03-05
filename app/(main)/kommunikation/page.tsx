@@ -95,14 +95,14 @@ export default function KommunikationPage() {
       <input
         type="search"
         placeholder="Suche in Nachrichten, Kunden, Mediaplänen..."
-        className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-500"
+        className="w-full rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-500"
       />
 
       <div className="flex gap-2">
         <button
           type="button"
           onClick={nochNichtImplementiert}
-          className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
         >
           Filter &gt;
         </button>
@@ -111,9 +111,9 @@ export default function KommunikationPage() {
             key={tab}
             type="button"
             onClick={() => setFilter(tab)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+            className={`rounded-full px-4 py-2 text-sm font-medium ${
               filter === tab
-                ? "bg-violet-100 text-violet-900"
+                ? "bg-[#FF6554]/15 text-[#FF6554]"
                 : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
             }`}
           >
@@ -126,7 +126,7 @@ export default function KommunikationPage() {
         {FEED_ITEMS.map((item) => (
           <li
             key={item.id}
-            className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
+            className="content-radius border border-zinc-200 bg-white p-5 shadow-sm"
           >
             <div className="flex flex-wrap items-center gap-2">
               <span

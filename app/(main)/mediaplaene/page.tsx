@@ -15,6 +15,8 @@ const TABS = [
 type Mediaplan = {
   id: string;
   client: string;
+  kunde_id: string | null;
+  kunde_name: string | null;
   status: string;
   campaign: string;
   date_range_start: string | null;
@@ -55,7 +57,7 @@ export default function MediaplaenePage() {
       setError(null);
       const { data: plansData, error: plansErr } = await supabase
         .from("mediaplaene")
-        .select("id, client, status, campaign, date_range_start, date_range_end")
+        .select("id, client, kunde_id, status, campaign, date_range_start, date_range_end")
         .order("created_at", { ascending: false });
 
       if (plansErr) {
@@ -66,6 +68,14 @@ export default function MediaplaenePage() {
       }
 
       const planList = plansData ?? [];
+      let kundenMap: Record<string, string> = {};
+      if (planList.length > 0) {
+        const kundeIds = [...new Set((planList.map((p) => (p as { kunde_id?: string }).kunde_id).filter(Boolean) as string[]))];
+        if (kundeIds.length > 0) {
+          const { data: kundenData } = await supabase.from("kunden").select("id, name").in("id", kundeIds);
+          kundenMap = Object.fromEntries((kundenData ?? []).map((k) => [k.id, k.name]));
+        }
+      }
       if (planList.length === 0) {
         setPlans([]);
         setLoading(false);
@@ -92,16 +102,21 @@ export default function MediaplaenePage() {
       }
 
       setPlans(
-        planList.map((row) => ({
-          id: row.id,
-          client: row.client ?? "",
-          status: row.status ?? "Entwurf",
-          campaign: row.campaign ?? "",
-          date_range_start: row.date_range_start ?? null,
-          date_range_end: row.date_range_end ?? null,
-          positionsCount: byPlan[row.id]?.count ?? 0,
-          totalKundenpreis: byPlan[row.id]?.sum ?? 0,
-        }))
+        planList.map((row) => {
+          const r = row as { kunde_id?: string };
+          return {
+            id: row.id,
+            client: row.client ?? "",
+            kunde_id: r.kunde_id ?? null,
+            kunde_name: r.kunde_id ? (kundenMap[r.kunde_id] ?? null) : null,
+            status: row.status ?? "Entwurf",
+            campaign: row.campaign ?? "",
+            date_range_start: row.date_range_start ?? null,
+            date_range_end: row.date_range_end ?? null,
+            positionsCount: byPlan[row.id]?.count ?? 0,
+            totalKundenpreis: byPlan[row.id]?.sum ?? 0,
+          };
+        })
       );
       setLoading(false);
     }
@@ -135,7 +150,7 @@ export default function MediaplaenePage() {
         </header>
         <Link
           href="/mediaplaene/neu"
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
         >
           + Neuer Mediaplan
         </Link>
@@ -149,7 +164,7 @@ export default function MediaplaenePage() {
             onClick={() => setActiveTab(tab.id)}
             className={`border-b-2 px-4 py-3 text-sm font-medium transition ${
               activeTab === tab.id
-                ? "border-violet-600 text-violet-600"
+                ? "border-[#FF6554] text-[#FF6554]"
                 : "border-transparent text-zinc-600 hover:text-zinc-900"
             }`}
           >
@@ -166,7 +181,7 @@ export default function MediaplaenePage() {
         </div>
       )}
 
-      <section className="rounded-lg border-t-4 border-[#8026FE] bg-white p-5">
+      <section className="haupt-box p-5">
         {loading ? (
           <p className="text-zinc-500">Mediapläne werden geladen…</p>
         ) : (
@@ -174,12 +189,12 @@ export default function MediaplaenePage() {
             {filtered.map((plan) => (
               <article
                 key={plan.id}
-                className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between"
+                className="content-radius flex flex-col gap-4 border border-zinc-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-zinc-950">
-                      {plan.client}
+                      {plan.kunde_name ?? plan.client}
                     </span>
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -213,13 +228,13 @@ export default function MediaplaenePage() {
                   <div className="flex gap-2">
                     <Link
                       href={`/mediaplaene/${plan.id}`}
-                      className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                      className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
                     >
                       👁 Ansehen
                     </Link>
                     <Link
                       href={`/mediaplaene/${plan.id}`}
-                      className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+                      className="rounded-full bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
                     >
                       ✏ Bearbeiten
                     </Link>

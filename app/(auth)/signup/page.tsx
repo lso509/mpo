@@ -18,15 +18,22 @@ function SignupForm() {
 
   const supabase = createClient();
 
+  function getAuthBaseUrl() {
+    return typeof process.env.NEXT_PUBLIC_APP_URL === "string" && process.env.NEXT_PUBLIC_APP_URL
+      ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")
+      : window.location.origin;
+  }
+
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
+    const baseUrl = getAuthBaseUrl();
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
+        emailRedirectTo: `${baseUrl}/auth/callback?next=${encodeURIComponent(redirect)}`,
         data: { role },
       },
     });
@@ -44,10 +51,11 @@ function SignupForm() {
   async function handleGoogleLogin() {
     setLoading(true);
     setMessage(null);
+    const baseUrl = getAuthBaseUrl();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
+        redirectTo: `${baseUrl}/auth/callback?next=${encodeURIComponent(redirect)}`,
       },
     });
     if (error) {
@@ -120,7 +128,7 @@ function SignupForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+          className="w-full rounded-full bg-[#FF6554] px-4 py-2 text-sm font-medium text-white hover:bg-[#e55a4a] disabled:opacity-50"
         >
           {loading ? "Wird erstellt…" : "Konto erstellen"}
         </button>
@@ -131,7 +139,7 @@ function SignupForm() {
           type="button"
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24">
             <path
@@ -157,7 +165,7 @@ function SignupForm() {
 
       <p className="mt-4 text-center text-sm text-zinc-500">
         Bereits Konto?{" "}
-        <Link href={`/login${redirect !== "/dashboard" ? `?redirect=${encodeURIComponent(redirect)}` : ""}`} className="font-medium text-violet-600 hover:text-violet-700">
+        <Link href={`/login${redirect !== "/dashboard" ? `?redirect=${encodeURIComponent(redirect)}` : ""}`} className="font-medium text-[#FF6554] hover:text-[#e55a4a]">
           Anmelden
         </Link>
       </p>

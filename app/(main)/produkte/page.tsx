@@ -2,6 +2,7 @@
 
 import { NeuesProduktButton } from "@/app/components/NeuesProduktButton";
 import { createClient } from "@/lib/supabase/client";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 
@@ -443,36 +444,27 @@ function findSimilarProducts(
 }
 
 export default function ProduktePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const showArchived = searchParams.get("tab") === "archiv";
+  const searchQuery = searchParams.get("q") ?? "";
+
   const [filterKategorien, setFilterKategorien] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
   const [filterVerlage, setFilterVerlage] = useState<string[]>([]);
   const [filterKanal, setFilterKanal] = useState<string[]>([]);
   const [filterZielEignung, setFilterZielEignung] = useState<string[]>([]);
   const [filterLaufzeit, setFilterLaufzeit] = useState<string[]>([]);
   const [budgetMin, setBudgetMin] = useState("");
   const [budgetMax, setBudgetMax] = useState("");
-  const [productModal, setProductModal] = useState<string | null>(null);
-  const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
-  const [taskVorlagen, setTaskVorlagen] = useState<TaskVorlage[]>([]);
-  const [selectedTasks, setSelectedTasks] = useState<ProduktTaskConfig[]>([]);
-  const [aenderungshistorie, setAenderungshistorie] = useState<{ id: string; created_at: string; changed_by: string | null; change_description: string }[]>([]);
   const [sortByCategory, setSortByCategory] = useState<"alphabetisch" | "neueste">("alphabetisch");
-  const [fuzzyMatchThreshold, setFuzzyMatchThreshold] = useState(DEFAULT_FUZZY_THRESHOLD);
-  const [similarProductsDialog, setSimilarProductsDialog] = useState<{
-    similar: { product: Product; score: number }[];
-    onConfirmCreate: () => void;
-  } | null>(null);
+  const [excelMenuOpen, setExcelMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  /** Beim Öffnen des Modals geladene Task-Konfiguration (zum Erkennen von Änderungen beim Speichern) */
-  const initialSelectedTasksRef = useRef<ProduktTaskConfig[]>([]);
 
   const toggleFilter = (
     setter: React.Dispatch<React.SetStateAction<string[]>>,
@@ -503,177 +495,6 @@ export default function ProduktePage() {
     }
     load();
   }, []);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.from("task_vorlagen").select("id, category, title, description").order("category").order("title").then(({ data }) => {
-      if (data) setTaskVorlagen(data as TaskVorlage[]);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (productModal == null || productModal === "new") {
-      setSelectedTasks([]);
-      setAenderungshistorie([]);
-      initialSelectedTasksRef.current = [];
-      return;
-    }
-    const supabase = createClient();
-    supabase
-      .from("produkt_task_vorlagen")
-      .select("task_vorlage_id, tage, richtung, referenz")
-      .eq("produkt_id", productModal)
-      .then(({ data }) => {
-        const rows = data ?? [];
-        const configs: ProduktTaskConfig[] = rows.map((r) => ({
-          task_vorlage_id: r.task_vorlage_id as string,
-          tage: Number(r.tage ?? 0),
-          richtung: (r.richtung === "nach" || r.richtung === "am gleichen Tag" ? r.richtung : "vor") as Richtung,
-          referenz: (REFERENZ_OPTIONS.includes(r.referenz as Referenz) ? r.referenz : "Enddatum") as Referenz,
-        }));
-        setSelectedTasks(configs);
-        initialSelectedTasksRef.current = configs;
-      });
-    supabase
-      .from("produkt_aenderungshistorie")
-      .select("id, created_at, changed_by, change_description")
-      .eq("produkt_id", productModal)
-      .order("created_at", { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        setAenderungshistorie((data ?? []) as { id: string; created_at: string; changed_by: string | null; change_description: string }[]);
-      });
-  }, [productModal]);
-
-  const openModal = (id: string | "new") => {
-    if (id === "new") {
-      setEditingProduct({ ...emptyProduct });
-    } else {
-      const p = products.find((x) => x.id === id);
-      setEditingProduct(p ? { ...p } : { ...emptyProduct });
-    }
-    setProductModal(id);
-  };
-
-  const closeModal = () => {
-    setProductModal(null);
-    setEditingProduct(null);
-  };
-
-  const setField = <K extends keyof Product>(key: K, value: Product[K]) => {
-    setEditingProduct((prev) => (prev ? { ...prev, [key]: value } : null));
-  };
-
-  const saveProduktTaskVorlagen = async (produktId: string, tasksToSave: ProduktTaskConfig[]) => {
-    const supabase = createClient();
-    await supabase.from("produkt_task_vorlagen").delete().eq("produkt_id", produktId);
-    if (tasksToSave.length > 0) {
-      await supabase.from("produkt_task_vorlagen").insert(
-        tasksToSave.map((t) => ({
-          produkt_id: produktId,
-          task_vorlage_id: t.task_vorlage_id,
-          tage: t.tage,
-          richtung: t.richtung,
-          referenz: t.referenz,
-        }))
-      );
-    }
-  };
-
-  const handleSave = async (asNewVariant: boolean, overwrite: boolean) => {
-    if (!editingProduct) return;
-    setSaving(true);
-    const supabase = createClient();
-    const row = productToRow(editingProduct) as Record<string, unknown>;
-    row.automatisierung_aktiv = selectedTasks.length > 0;
-
-    if (productModal === "new" || asNewVariant) {
-      // Fuzzy-Check: ähnliche Produkte?
-      const existing = products.filter((p) => !p.archived);
-      const similar = findSimilarProducts(editingProduct, existing, fuzzyMatchThreshold);
-      if (similar.length > 0) {
-        setSimilarProductsDialog({
-          similar,
-          onConfirmCreate: () => {
-            setSimilarProductsDialog(null);
-            setSaving(true);
-            supabase.from("produkte").insert(row).select("id").single().then(({ data: inserted, error: err }) => {
-              if (err) setError(err.message);
-              else if (inserted?.id) {
-                saveProduktTaskVorlagen(inserted.id, selectedTasks).then(() => {
-                  supabase.from("produkte").select("*").then(({ data }) => {
-                    if (data) setProducts(data.map(mapRow));
-                    closeModal();
-                  });
-                });
-              }
-              setSaving(false);
-            });
-          },
-        });
-        setSaving(false);
-        return;
-      }
-      // Keine ähnlichen: direkt einfügen
-      const { data: inserted, error: err } = await supabase.from("produkte").insert(row).select("id").single();
-      if (err) setError(err.message);
-      else if (inserted?.id) {
-        await saveProduktTaskVorlagen(inserted.id, selectedTasks);
-        const { data } = await supabase.from("produkte").select("*");
-        if (data) setProducts(data.map(mapRow));
-        closeModal();
-      }
-    } else if (typeof productModal === "string" && overwrite) {
-      // "Ersetzen & Archivieren": aktuelle Version archivieren, dann neue Version anlegen
-      await supabase.from("produkte").update({ archived: true }).eq("id", productModal);
-      const { data: inserted, error: err } = await supabase.from("produkte").insert(row).select("id").single();
-      if (err) setError(err.message);
-      else if (inserted?.id) {
-        await saveProduktTaskVorlagen(inserted.id, selectedTasks);
-        const { data } = await supabase.from("produkte").select("*");
-        if (data) setProducts(data.map(mapRow));
-        closeModal();
-      }
-    } else if (typeof productModal === "string") {
-      // "Speichern": vorhandenes Produkt mit Änderungen überschreiben + Änderungshistorie
-      const { data: currentRow } = await supabase.from("produkte").select("*").eq("id", productModal).single();
-      const historyEntries: { change_description: string }[] = [];
-
-      if (currentRow) {
-        const fieldEntries = buildChangelogEntries(currentRow as Record<string, unknown>, row as Record<string, unknown>);
-        historyEntries.push(...fieldEntries);
-      }
-
-      // Task-Vorlagen geändert?
-      const initialIds = initialSelectedTasksRef.current.map((t) => t.task_vorlage_id).sort();
-      const currentIds = selectedTasks.map((t) => t.task_vorlage_id).sort();
-      const initialStr = JSON.stringify(initialSelectedTasksRef.current.map((t) => ({ ...t })).sort((a, b) => a.task_vorlage_id.localeCompare(b.task_vorlage_id)));
-      const currentStr = JSON.stringify([...selectedTasks].sort((a, b) => a.task_vorlage_id.localeCompare(b.task_vorlage_id)));
-      const tasksEqual = initialStr === currentStr;
-      if (!tasksEqual) {
-        historyEntries.push({
-          change_description: `Automatische Tasks: von ${initialIds.length} auf ${currentIds.length} Vorlagen`,
-        });
-      }
-
-      if (historyEntries.length > 0) {
-        const { error: histErr } = await supabase.from("produkt_aenderungshistorie").insert(
-          historyEntries.map((e) => ({ produkt_id: productModal, changed_by: null, change_description: e.change_description }))
-        );
-        if (histErr) setError(`Änderungshistorie: ${histErr.message}`);
-      }
-
-      const { error: err } = await supabase.from("produkte").update(row).eq("id", productModal);
-      if (err) setError(err.message);
-      else {
-        await saveProduktTaskVorlagen(productModal, selectedTasks);
-        const { data } = await supabase.from("produkte").select("*");
-        if (data) setProducts(data.map(mapRow));
-        closeModal();
-      }
-    }
-    setSaving(false);
-  };
 
   const handleExcelExport = () => {
     const list = showArchived ? products.filter((p) => p.archived) : products.filter((p) => !p.archived);
@@ -765,8 +586,7 @@ export default function ProduktePage() {
 
   const handleDuplizieren = (p: Product) => {
     setOpenMenuId(null);
-    setEditingProduct({ ...p, id: undefined });
-    setProductModal("new");
+    router.push(`/produkte/neu?duplicate=${p.id}`);
   };
 
   const handleLöschen = (id: string) => {
@@ -862,7 +682,7 @@ export default function ProduktePage() {
                   id={`kategorie-${c}`}
                   checked={filterKategorien.includes(c)}
                   onChange={() => toggleFilter(setFilterKategorien, c)}
-                  className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#3f3f46_40%)]"
+                  className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#3f3f46_40%)]"
                 />
                   <label htmlFor={`kategorie-${c}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {categoryLabel(c)}
@@ -883,7 +703,7 @@ export default function ProduktePage() {
                     id={`verlag-${v}`}
                     checked={filterVerlage.includes(v)}
                     onChange={() => toggleFilter(setFilterVerlage, v)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#3f3f46_40%)]"
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#3f3f46_40%)]"
                   />
                   <label htmlFor={`verlag-${v}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {v}
@@ -905,7 +725,7 @@ export default function ProduktePage() {
                     id={`kanal-${k}`}
                     checked={filterKanal.includes(k)}
                     onChange={() => toggleFilter(setFilterKanal, k)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#3f3f46_40%)]"
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#3f3f46_40%)]"
                   />
                   <label htmlFor={`kanal-${k}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {k}
@@ -927,7 +747,7 @@ export default function ProduktePage() {
                     id={`ziel-${z}`}
                     checked={filterZielEignung.includes(z)}
                     onChange={() => toggleFilter(setFilterZielEignung, z)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#3f3f46_40%)]"
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#3f3f46_40%)]"
                   />
                   <label htmlFor={`ziel-${z}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {z}
@@ -949,7 +769,7 @@ export default function ProduktePage() {
                     id={`laufzeit-${l}`}
                     checked={filterLaufzeit.includes(l)}
                     onChange={() => toggleFilter(setFilterLaufzeit, l)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#3f3f46_40%)]"
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#3f3f46_40%)]"
                   />
                   <label htmlFor={`laufzeit-${l}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                     {l}
@@ -992,39 +812,6 @@ export default function ProduktePage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 pt-2">
-          <button
-            type="button"
-            onClick={() => setShowArchived((prev) => !prev)}
-            className={`rounded-lg px-3 py-2 text-sm font-medium ${showArchived ? "bg-zinc-200 dark:bg-zinc-600 text-zinc-800 dark:text-zinc-100" : "bg-zinc-700 dark:bg-zinc-600 text-white hover:bg-zinc-600 dark:hover:bg-zinc-500"}`}
-          >
-            {showArchived ? "Zurück zum Katalog" : "Archiv"}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            className="hidden"
-            onChange={handleExcelImport}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
-          >
-            Excel importieren
-          </button>
-          <button
-            type="button"
-            onClick={handleExcelExport}
-            className="text-sm text-zinc-500 dark:text-zinc-400 underline hover:text-zinc-700 dark:hover:text-zinc-200"
-          >
-            Excel herunterladen
-          </button>
-          {importStatus && (
-            <p className="text-xs text-zinc-600 dark:text-zinc-400">{importStatus}</p>
-          )}
-        </div>
       </aside>
 
       <div className="min-w-0 flex-1">
@@ -1045,20 +832,70 @@ export default function ProduktePage() {
               <select
                 value={sortByCategory}
                 onChange={(e) => setSortByCategory(e.target.value as "alphabetisch" | "neueste")}
-                className="rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
+                className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
               >
                 <option value="alphabetisch">Alphabetisch</option>
                 <option value="neueste">Neueste zuerst</option>
               </select>
             </label>
             <input
-              type="search"
-              placeholder="Produktkatalog durchsuchen..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleExcelImport}
             />
-            <NeuesProduktButton onClick={() => openModal("new")} />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setExcelMenuOpen((prev) => !prev)}
+                className="inline-flex h-10 items-center gap-2 rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+              >
+                <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <path d="M8 13h2" />
+                  <path d="M8 17h2" />
+                  <path d="M14 13h2" />
+                  <path d="M14 17h2" />
+                </svg>
+                <span>Import / Export</span>
+                <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {excelMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" aria-hidden onClick={() => setExcelMenuOpen(false)} />
+                  <div className="absolute left-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 py-1 shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExcelMenuOpen(false);
+                        fileInputRef.current?.click();
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                    >
+                      Excel importieren
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExcelMenuOpen(false);
+                        handleExcelExport();
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                    >
+                      Excel exportieren
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <NeuesProduktButton onClick={() => router.push("/produkte/neu")} />
+            {importStatus && (
+              <span className="text-xs text-zinc-600 dark:text-zinc-400">{importStatus}</span>
+            )}
           </div>
         </div>
 
@@ -1096,7 +933,7 @@ export default function ProduktePage() {
                     : [...filtered].sort((a, b) => (displayName(a) || "").localeCompare(displayName(b) || "", "de"));
                 if (items.length === 0) return null;
                 return (
-                  <section key={cat} className="rounded-lg border-t-4 border-[#8026FE] bg-white dark:bg-zinc-800 p-5">
+                  <section key={cat} className="haupt-box dark:bg-zinc-800 p-5">
                     <h2 className="mb-4 text-sm font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
                       {categoryLabel(cat)}
                     </h2>
@@ -1104,7 +941,7 @@ export default function ProduktePage() {
                       {items.map((p) => (
                         <article
                           key={p.id}
-                          className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-4"
+                          className="content-radius border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-4"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <h3 className="font-semibold text-zinc-950 dark:text-zinc-100 min-w-0">
@@ -1113,8 +950,8 @@ export default function ProduktePage() {
                             <div className="flex shrink-0 items-center gap-1">
                               <button
                                 type="button"
-                                onClick={() => openModal(p.id)}
-                                className="rounded-lg border border-zinc-200 dark:border-zinc-600 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                                onClick={() => router.push(`/produkte/${p.id}`)}
+                                className="rounded-full border border-zinc-200 dark:border-zinc-600 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                                 title="Bearbeiten"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1129,7 +966,7 @@ export default function ProduktePage() {
                                     e.stopPropagation();
                                     setOpenMenuId((prev) => (prev === p.id ? null : p.id));
                                   }}
-                                  className="rounded-lg border border-zinc-200 dark:border-zinc-600 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                                  className="rounded-full border border-zinc-200 dark:border-zinc-600 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                                   title="Menü"
                                 >
                                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -1224,641 +1061,23 @@ export default function ProduktePage() {
 
       {deleteConfirmId != null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-6 shadow-xl">
+          <div className="content-radius w-full max-w-sm border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-6 shadow-xl">
             <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">Produkt wirklich löschen?</p>
             <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">Diese Aktion kann nicht rückgängig gemacht werden.</p>
             <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setDeleteConfirmId(null)}
-                className="rounded-lg border border-zinc-200 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                className="rounded-full border border-zinc-200 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
               >
                 Abbrechen
               </button>
               <button
                 type="button"
                 onClick={handleDeleteConfirm}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                className="rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
               >
                 Löschen
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {productModal != null && editingProduct != null && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={closeModal}
-        >
-          <div
-            className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="shrink-0 border-b border-zinc-200 dark:border-zinc-700 px-6 py-4 text-xl font-semibold text-zinc-950 dark:text-zinc-100">
-              {productModal === "new" ? "Neues Produkt" : "Produkt bearbeiten"}
-            </h3>
-
-            <form
-              className="flex min-h-0 flex-1 flex-col"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSave(false, false);
-              }}
-            >
-              <div className="flex-1 overflow-y-auto p-6">
-                {/* 1. Basis-Infos */}
-                <section className="mb-6">
-                  <h4 className="mb-3 rounded-lg border-b-2 border-[#8026FE] bg-[#8026FE]/10 dark:bg-[#8026FE]/20 px-3 py-2 text-sm font-semibold text-[#8026FE] dark:text-[#a566fe]">
-                    Basis-Infos
-                  </h4>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-zinc-700">Produktvariante Titel</label>
-                      <input
-                        type="text"
-                        value={editingProduct.produktvarianteTitel ?? ""}
-                        onChange={(e) => setField("produktvarianteTitel", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                      <p className="mt-1 text-xs text-zinc-600">z.B. Liewo 1/4 Seite, Liewo 1/2 Seite</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Kategorie</label>
-                      <select
-                        value={editingProduct.category ?? ""}
-                        onChange={(e) => setField("category", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      >
-                        {CATEGORIES.map((c) => (
-                          <option key={c} value={c}>{categoryLabel(c)}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Verlag</label>
-                      <input
-                        type="text"
-                        value={editingProduct.verlag ?? ""}
-                        onChange={(e) => setField("verlag", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Kanal (Werbeform)</label>
-                      <select
-                        value={editingProduct.kanal ?? ""}
-                        onChange={(e) => setField("kanal", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      >
-                        <option value="">—</option>
-                        {KANAL_OPTIONS.map((k) => (
-                          <option key={k} value={k}>{k}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Produktgruppe</label>
-                      <input
-                        type="text"
-                        value={editingProduct.produktgruppe ?? ""}
-                        onChange={(e) => setField("produktgruppe", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-zinc-700">Beispiel (Platzhalter für Bild)</label>
-                      <textarea
-                        value={editingProduct.beispielBild ?? ""}
-                        onChange={(e) => setField("beispielBild", e.target.value)}
-                        rows={2}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                      <p className="mt-1 text-xs text-zinc-600">Platzhalter für zukünftige Bildfunktion. Diese Funktion ist derzeit deaktiviert.</p>
-                    </div>
-                  </div>
-                </section>
-
-                {/* 2. Placement & Kreativ-Specs */}
-                <section className="mb-6">
-                  <h4 className="mb-3 rounded-lg border-b-2 border-[#8026FE] bg-[#8026FE]/10 dark:bg-[#8026FE]/20 px-3 py-2 text-sm font-semibold text-[#8026FE] dark:text-[#a566fe]">
-                    Placement &amp; Kreativ-Specs
-                  </h4>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-zinc-700">Platzierung</label>
-                      <textarea
-                        value={editingProduct.platzierung ?? ""}
-                        onChange={(e) => setField("platzierung", e.target.value)}
-                        rows={2}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Position</label>
-                      <input
-                        type="text"
-                        value={editingProduct.position ?? ""}
-                        onChange={(e) => setField("position", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                      <p className="mt-1 text-xs text-zinc-600">z.B. Above the Fold – Homepage</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Ziel-Eignung</label>
-                      <select
-                        value={editingProduct.zielEignung ?? ""}
-                        onChange={(e) => setField("zielEignung", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      >
-                        <option value="">—</option>
-                        {ZIEL_EIGNUNG_OPTIONS.map((z) => (
-                          <option key={z} value={z}>{z}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-zinc-700">Zusatzinformationen für diese Produktvariante</label>
-                      <textarea
-                        value={editingProduct.zusatzinformationen ?? ""}
-                        onChange={(e) => setField("zusatzinformationen", e.target.value)}
-                        rows={2}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                      <p className="mt-1 text-xs text-zinc-600">z.B. Werberadius: Liechtenstein</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Farbraum</label>
-                      <select
-                        value={editingProduct.creativeFarbe === "RGB" || editingProduct.creativeFarbe === "CMYK" ? editingProduct.creativeFarbe : ""}
-                        onChange={(e) => setField("creativeFarbe", e.target.value || null)}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      >
-                        <option value="">—</option>
-                        <option value="RGB">RGB</option>
-                        <option value="CMYK">CMYK</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Dateityp</label>
-                      <input
-                        type="text"
-                        value={editingProduct.creativeDateityp ?? ""}
-                        onChange={(e) => setField("creativeDateityp", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                      <p className="mt-1 text-xs text-zinc-600">z.B. PDF</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Grösse</label>
-                      <div className="mt-1 flex rounded-lg border border-zinc-200">
-                        <input
-                          type="text"
-                          value={editingProduct.creativeGroesse ?? ""}
-                          onChange={(e) => setField("creativeGroesse", e.target.value)}
-                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-[#8026FE]"
-                        />
-                        <select
-                          value={editingProduct.creativeGroesseEinheit ?? "px"}
-                          onChange={(e) => setField("creativeGroesseEinheit", e.target.value as "px" | "mm" | "cm")}
-                          className="rounded-r-lg border-0 bg-zinc-100 px-3 py-2 text-sm text-zinc-600 focus:ring-2 focus:ring-[#8026FE]"
-                        >
-                          <option value="px">px</option>
-                          <option value="mm">mm</option>
-                          <option value="cm">cm</option>
-                        </select>
-                      </div>
-                      <p className="mt-1 text-xs text-zinc-600">z.B. 728 x 90 (px) oder 210 x 297 (mm)</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Typ</label>
-                      <input
-                        type="text"
-                        value={editingProduct.creativeTyp ?? ""}
-                        onChange={(e) => setField("creativeTyp", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                      <p className="mt-1 text-xs text-zinc-600">z.B. Statischer Banner oder Animiert</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Creative Deadline</label>
-                      <div className="mt-1 flex rounded-lg border border-zinc-200">
-                        <span className="flex items-center rounded-l-lg bg-zinc-100 pl-3 pr-2 text-zinc-500" aria-hidden>
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-                            <line x1="16" x2="16" y1="2" y2="6" />
-                            <line x1="8" x2="8" y1="2" y2="6" />
-                            <line x1="3" x2="21" y1="10" y2="10" />
-                          </svg>
-                        </span>
-                        <input
-                          type="date"
-                          value={editingProduct.creativeDeadlineDate ?? ""}
-                          onChange={(e) => setField("creativeDeadlineDate", e.target.value || null)}
-                          className="min-w-0 flex-1 rounded-r-lg border-0 py-2 pr-3 pl-2 text-sm focus:ring-2 focus:ring-[#8026FE]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                {/* 3. Preise & Budget */}
-                <section className="mb-6">
-                  <h4 className="mb-3 rounded-lg border-b-2 border-[#8026FE] bg-[#8026FE]/10 dark:bg-[#8026FE]/20 px-3 py-2 text-sm font-semibold text-[#8026FE] dark:text-[#a566fe]">
-                    Preise &amp; Budget
-                  </h4>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Währung</label>
-                      <select
-                        value={editingProduct.waehrung ?? "CHF"}
-                        onChange={(e) => setField("waehrung", e.target.value as "CHF" | "EUR")}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      >
-                        <option value="CHF">CHF</option>
-                        <option value="EUR">EUR</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Laufzeit pro Einheit</label>
-                      <select
-                        value={editingProduct.laufzeitProEinheit ?? ""}
-                        onChange={(e) => setField("laufzeitProEinheit", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      >
-                        {LAUFZEIT_OPTIONS.map((l) => (
-                          <option key={l} value={l}>{l}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Preis Brutto pro Einheit</label>
-                      <div className="mt-1 flex rounded-lg border border-zinc-200">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          value={editingProduct.preisBruttoChf ?? ""}
-                          onChange={(e) =>
-                            setField("preisBruttoChf", e.target.value === "" ? null : parseFloat(e.target.value))
-                          }
-                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-[#8026FE]"
-                        />
-                        <span className="flex items-center rounded-r-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{editingProduct.waehrung ?? "CHF"}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Preis Netto pro Einheit</label>
-                      <div className="mt-1 flex rounded-lg border border-zinc-200">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          value={editingProduct.preisNettoChf ?? ""}
-                          onChange={(e) =>
-                            setField("preisNettoChf", e.target.value === "" ? null : parseFloat(e.target.value))
-                          }
-                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-[#8026FE]"
-                        />
-                        <span className="flex items-center rounded-r-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{editingProduct.waehrung ?? "CHF"}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Preis Agenturservice pro Einheit</label>
-                      <div className="mt-1 flex rounded-lg border border-zinc-200">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          value={editingProduct.preisAgenturservice ?? ""}
-                          onChange={(e) =>
-                            setField("preisAgenturservice", e.target.value === "" ? null : parseFloat(e.target.value))
-                          }
-                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-[#8026FE]"
-                        />
-                        <span className="flex items-center rounded-r-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{editingProduct.waehrung ?? "CHF"}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Mindestbudget</label>
-                      <div className="mt-1 flex rounded-lg border border-zinc-200">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          value={editingProduct.mindestbudget ?? ""}
-                          onChange={(e) =>
-                            setField("mindestbudget", e.target.value === "" ? null : parseFloat(e.target.value))
-                          }
-                          className="min-w-0 flex-1 rounded-l-lg border-0 px-3 py-2 text-sm focus:ring-2 focus:ring-[#8026FE]"
-                        />
-                        <span className="flex items-center rounded-r-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600">{editingProduct.waehrung ?? "CHF"}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-700">Empfohlenes Medienbudget (optional)</label>
-                      <input
-                        type="text"
-                        value={editingProduct.empfohlenesMedienbudget ?? ""}
-                        onChange={(e) => setField("empfohlenesMedienbudget", e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-zinc-700">Buchungsvoraussetzung</label>
-                      <textarea
-                        value={editingProduct.buchungsvoraussetzung ?? ""}
-                        onChange={(e) => setField("buchungsvoraussetzung", e.target.value)}
-                        rows={2}
-                        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                      <p className="mt-1 text-xs text-zinc-600">z.B. Meta Business Manager Setup</p>
-                    </div>
-                  </div>
-                </section>
-
-                {/* 4. Automatisierung */}
-                <section className="mb-6">
-                  <h4 className="mb-3 rounded-lg border-b-2 border-[#8026FE] bg-[#8026FE]/10 dark:bg-[#8026FE]/20 px-3 py-2 text-sm font-semibold text-[#8026FE] dark:text-[#a566fe]">
-                    Automatisierung
-                  </h4>
-                  <p className="mb-4 text-xs text-zinc-600 dark:text-zinc-400">
-                    Tasks, die beim Hinzufügen dieses Produkts zu einem Mediaplan automatisch erstellt werden. Verwaltung: Einstellungen → Task-Vorlagen.
-                  </p>
-
-                  <div className="space-y-4">
-                    {Array.from(new Set(taskVorlagen.map((t) => t.category))).map((cat) => {
-                      const items = taskVorlagen.filter((t) => t.category === cat);
-                      return (
-                        <div key={cat}>
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                            {cat}
-                          </p>
-                          <div className="flex flex-col gap-1">
-                            {items.map((t) => {
-                              const cfg = selectedTasks.find((c) => c.task_vorlage_id === t.id);
-                              const selected = cfg != null;
-                              const isGleicherTag = cfg?.richtung === "am gleichen Tag";
-                              const tagTage = cfg ? (cfg.tage === 1 ? "Tag" : "Tage") : "Tage";
-                              const inputClass = isGleicherTag
-                                ? "cursor-not-allowed border-zinc-200 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-700/50 text-zinc-400 dark:text-zinc-500"
-                                : "border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100";
-                              return (
-                                <div key={t.id} className="flex flex-col gap-1">
-                                  <div className="flex items-center gap-3 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800/80 px-3 py-2.5">
-                                    <label className="switch shrink-0 cursor-pointer" aria-label={`${t.title} ${selected ? "deaktivieren" : "aktivieren"}`}>
-                                      <input
-                                        type="checkbox"
-                                        checked={selected}
-                                        onChange={() => {
-                                          setSelectedTasks((prev) => {
-                                            if (prev.some((c) => c.task_vorlage_id === t.id)) {
-                                              return prev.filter((c) => c.task_vorlage_id !== t.id);
-                                            }
-                                            const def = getDefaultTaskConfig(t.title);
-                                            return [...prev, { task_vorlage_id: t.id, ...def }];
-                                          });
-                                        }}
-                                      />
-                                      <span className="slider" />
-                                    </label>
-                                    <div className="min-w-0 flex-1">
-                                      <span className="font-medium text-zinc-900 dark:text-zinc-100">{t.title}</span>
-                                      {t.description && (
-                                        <span className="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">{t.description}</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {selected && cfg && (
-                                    <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-zinc-50/50 dark:bg-zinc-800/50 pl-4 pr-3 py-2">
-                                      <span className="text-zinc-600 dark:text-zinc-400">[</span>
-                                      <input
-                                        type="number"
-                                        min={0}
-                                        value={cfg.tage}
-                                        disabled={isGleicherTag}
-                                        onChange={(e) => {
-                                          const v = parseInt(e.target.value, 10);
-                                          setSelectedTasks((prev) =>
-                                            prev.map((x) =>
-                                              x.task_vorlage_id === cfg.task_vorlage_id ? { ...x, tage: Number.isNaN(v) ? 0 : Math.max(0, v) } : x
-                                            )
-                                          );
-                                        }}
-                                        className={`w-14 rounded border px-2 py-1 text-sm ${inputClass}`}
-                                        aria-label="Tage"
-                                      />
-                                      <span className="text-zinc-600 dark:text-zinc-400">]</span>
-                                      <span className="text-zinc-600 dark:text-zinc-400">{tagTage}</span>
-                                      <span className="text-zinc-600 dark:text-zinc-400">[</span>
-                                      <select
-                                        value={cfg.richtung}
-                                        onChange={(e) =>
-                                          setSelectedTasks((prev) =>
-                                            prev.map((x) =>
-                                              x.task_vorlage_id === cfg.task_vorlage_id ? { ...x, richtung: e.target.value as Richtung } : x
-                                            )
-                                          )
-                                        }
-                                        className="rounded border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1 text-sm text-zinc-900 dark:text-zinc-100"
-                                        aria-label="Richtung"
-                                      >
-                                        {RICHTUNG_OPTIONS.map((r) => (
-                                          <option key={r} value={r}>{RICHTUNG_LABEL[r]}</option>
-                                        ))}
-                                      </select>
-                                      <span className="text-zinc-600 dark:text-zinc-400">]</span>
-                                      <span className="text-zinc-600 dark:text-zinc-400">[</span>
-                                      <select
-                                        value={cfg.referenz}
-                                        onChange={(e) =>
-                                          setSelectedTasks((prev) =>
-                                            prev.map((x) =>
-                                              x.task_vorlage_id === cfg.task_vorlage_id ? { ...x, referenz: e.target.value as Referenz } : x
-                                            )
-                                          )
-                                        }
-                                        className="rounded border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1 text-sm text-zinc-900 dark:text-zinc-100"
-                                        aria-label="Referenz"
-                                      >
-                                        {REFERENZ_OPTIONS.map((r) => (
-                                          <option key={r} value={r}>{r}</option>
-                                        ))}
-                                      </select>
-                                      <span className="text-zinc-600 dark:text-zinc-400">]</span>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-
-                {productModal === "new" && (
-                  <section className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 p-3">
-                    <label className="flex flex-wrap items-center gap-2 text-sm text-zinc-600">
-                      <span>Warnung bei Ähnlichkeit ab:</span>
-                      <select
-                        value={fuzzyMatchThreshold}
-                        onChange={(e) => setFuzzyMatchThreshold(Number(e.target.value))}
-                        className="rounded border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
-                      >
-                        {FUZZY_MATCH_THRESHOLDS.map((t) => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <p className="mt-1 text-xs text-zinc-600">
-                      Beim Speichern wird geprüft, ob ähnliche Produkte existieren. Je niedriger der Wert, desto mehr Treffer.
-                    </p>
-                  </section>
-                )}
-
-                {productModal !== "new" && (
-                  <section className="mt-4 border-t border-zinc-200 dark:border-zinc-700 pt-4">
-                    <h4 className="mb-3 text-sm font-semibold text-zinc-700">
-                      Änderungshistorie
-                    </h4>
-                  {aenderungshistorie.length === 0 ? (
-                    <p className="text-sm text-zinc-500">
-                      Noch keine Änderungen erfasst.
-                    </p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {aenderungshistorie.map((e) => {
-                        const at = e.created_at
-                          ? new Date(e.created_at).toLocaleString("de-CH", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "—";
-                        return (
-                          <li
-                            key={e.id}
-                            className="rounded-lg border border-zinc-100 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-200"
-                          >
-                            <span className="font-medium">{e.change_description}</span>
-                            <span className="mx-2 text-zinc-400">·</span>
-                            <span className="text-zinc-500">am {at}</span>
-                            {e.changed_by && (
-                              <>
-                                <span className="mx-2 text-zinc-400">·</span>
-                                <span className="text-zinc-500">{e.changed_by}</span>
-                              </>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                  </section>
-                )}
-              </div>
-              <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-6 py-4">
-                <div className="flex flex-wrap justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="rounded-lg border border-zinc-200 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                  >
-                    Abbrechen
-                  </button>
-                  {productModal !== "new" && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleSave(true, false)}
-                        disabled={saving}
-                        className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
-                      >
-                        Variante erstellen
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSave(false, true)}
-                        disabled={saving}
-                        className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
-                      >
-                        Ersetzen & Archivieren
-                      </button>
-                    </>
-                  )}
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    {productModal === "new" ? "Neues Produkt speichern" : "Speichern"}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Dialog: Ähnliche Produkte gefunden */}
-      {similarProductsDialog != null && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setSimilarProductsDialog(null)}
-        >
-          <div
-            className="w-full max-w-md rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              Ähnliche Produkte gefunden
-            </h3>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-              Es gibt bereits {similarProductsDialog.similar.length} Produkt
-              {similarProductsDialog.similar.length === 1 ? "" : "e"}, die dem neuen sehr ähneln.
-              Trotzdem neu anlegen oder ein bestehendes verwenden?
-            </p>
-            <ul className="mt-4 max-h-60 space-y-2 overflow-y-auto">
-              {similarProductsDialog.similar.map(({ product, score }) => (
-                <li key={product.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProductModal(product.id);
-                      setEditingProduct({ ...product });
-                      setSimilarProductsDialog(null);
-                    }}
-                    className="flex w-full items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-600 bg-zinc-50/50 dark:bg-zinc-800/50 px-3 py-2 text-left text-sm hover:bg-violet-50 dark:hover:bg-violet-900/30 hover:border-violet-200 dark:hover:border-violet-600"
-                  >
-                    <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                      {product.produktvarianteTitel ?? product.category ?? product.id}
-                    </span>
-                    <span className="shrink-0 text-xs text-zinc-600 dark:text-zinc-400">
-                      {Math.round(score * 100)}% ähnlich
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setSimilarProductsDialog(null)}
-                className="rounded-lg border border-zinc-200 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-              >
-                Abbrechen
-              </button>
-              <button
-                type="button"
-                onClick={() => similarProductsDialog.onConfirmCreate()}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-              >
-                Trotzdem neu anlegen
               </button>
             </div>
           </div>
@@ -1867,3 +1086,4 @@ export default function ProduktePage() {
     </div>
   );
 }
+

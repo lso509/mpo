@@ -9,6 +9,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 type MediaplanRow = {
   id: string;
   client: string | null;
+  kunde_id: string | null;
+  kunde_name: string | null;
   status: string | null;
   campaign: string | null;
   date_range_start: string | null;
@@ -27,6 +29,9 @@ type PositionRow = {
   kundenpreis: number | null;
   status_tags: string[] | null;
   sort_order: number;
+  start_date: string | null;
+  end_date: string | null;
+  creative_deadline: string | null;
 };
 
 type ProductRow = {
@@ -63,6 +68,138 @@ function formatDateRange(start: string | null, end: string | null): string {
   return `${fmt(start)} - ${fmt(end)}`;
 }
 
+function formatDateInput(v: string | null): string {
+  if (!v) return "";
+  const d = new Date(v);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function PositionListItem({
+  pos,
+  formatChf,
+  onDelete,
+  onUpdateDates,
+}: {
+  pos: PositionRow;
+  formatChf: (n: number | null) => string;
+  onDelete: () => void;
+  onUpdateDates: (d: { start_date?: string | null; end_date?: string | null; creative_deadline?: string | null }) => void;
+}) {
+  const [editDates, setEditDates] = useState(false);
+  const [startDate, setStartDate] = useState(formatDateInput(pos.start_date));
+  const [endDate, setEndDate] = useState(formatDateInput(pos.end_date));
+  const [creativeDeadline, setCreativeDeadline] = useState(formatDateInput(pos.creative_deadline));
+
+  const handleSaveDates = () => {
+    onUpdateDates({
+      start_date: startDate || null,
+      end_date: endDate || null,
+      creative_deadline: creativeDeadline || null,
+    });
+    setEditDates(false);
+  };
+
+  return (
+    <li className="content-radius flex flex-col gap-3 border border-zinc-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-3 min-w-0">
+        <input
+          type="checkbox"
+          className="mt-1 h-4 w-4 shrink-0 rounded border-0 border-none bg-zinc-100 shadow-none outline-none appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#f4f4f5_40%)]"
+        />
+        <span className="inline-block h-3 w-3 shrink-0 rounded-full bg-emerald-500" />
+        <div className="min-w-0">
+          <p className="font-medium text-zinc-950">{pos.title}</p>
+          {pos.description && (
+            <p className="text-sm text-zinc-600">{pos.description}</p>
+          )}
+          {pos.tag && (
+            <span className="mt-1 inline-block rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">
+              {pos.tag}
+            </span>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-zinc-500">
+            {!editDates ? (
+              <>
+                <span>Creative Deadline: {pos.creative_deadline ? formatDateRange(pos.creative_deadline, null) : "—"}</span>
+                <span>Start: {pos.start_date ? formatDateRange(pos.start_date, null) : "—"}</span>
+                <span>Ende: {pos.end_date ? formatDateRange(pos.end_date, null) : "—"}</span>
+                <button
+                  type="button"
+                  onClick={() => setEditDates(true)}
+                  className="text-[#FF6554] hover:underline"
+                >
+                  Datum bearbeiten
+                </button>
+              </>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-1">
+                  <span>Creative Deadline</span>
+                  <input
+                    type="date"
+                    value={creativeDeadline}
+                    onChange={(e) => setCreativeDeadline(e.target.value)}
+                    className="rounded border border-zinc-200 px-2 py-1 text-zinc-900"
+                  />
+                </label>
+                <label className="flex items-center gap-1">
+                  <span>Start</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="rounded border border-zinc-200 px-2 py-1 text-zinc-900"
+                  />
+                </label>
+                <label className="flex items-center gap-1">
+                  <span>Ende</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="rounded border border-zinc-200 px-2 py-1 text-zinc-900"
+                  />
+                </label>
+                <button type="button" onClick={handleSaveDates} className="rounded bg-[#FF6554] px-2 py-1 text-xs text-white hover:bg-[#e55a4a]">
+                  Speichern
+                </button>
+                <button type="button" onClick={() => setEditDates(false)} className="rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-50">
+                  Abbrechen
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 sm:flex-nowrap">
+        {(pos.status_tags ?? []).map((s, i) => (
+          <span key={i} className="rounded bg-zinc-100 px-2 py-0.5">
+            {s}
+          </span>
+        ))}
+      </div>
+      <div className="text-right text-sm shrink-0">
+        {pos.brutto != null && <p className="text-zinc-500">Brutto {formatChf(pos.brutto)}</p>}
+        {pos.discount_text && <p className="text-zinc-500">{pos.discount_text}</p>}
+        <p className="font-semibold text-zinc-950">
+          Kundenpreis {formatChf(pos.kundenpreis)}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="rounded p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 shrink-0"
+        aria-label="Löschen"
+      >
+        🗑
+      </button>
+    </li>
+  );
+}
+
 export default function MediaplanDetailPage() {
   const params = useParams();
   const planId = params.id as string;
@@ -81,7 +218,7 @@ export default function MediaplanDetailPage() {
     const supabase = createClient();
     const { data, error: err } = await supabase
       .from("mediaplaene")
-      .select("id, client, status, campaign, date_range_start, date_range_end")
+      .select("id, client, kunde_id, status, campaign, date_range_start, date_range_end")
       .eq("id", planId)
       .single();
     if (err) {
@@ -89,7 +226,14 @@ export default function MediaplanDetailPage() {
       setPlan(null);
       return;
     }
-    setPlan(data as MediaplanRow);
+    const row = data as MediaplanRow & { kunde_id?: string };
+    if (row.kunde_id) {
+      const { data: kData } = await supabase.from("kunden").select("name").eq("id", row.kunde_id).single();
+      row.kunde_name = kData?.name ?? null;
+    } else {
+      row.kunde_name = null;
+    }
+    setPlan(row);
   }, [planId]);
 
   const loadPositions = useCallback(async () => {
@@ -161,6 +305,9 @@ export default function MediaplanDetailPage() {
         kundenpreis: prod.preis_netto_chf ?? null,
         status_tags: ["Offen"],
         sort_order: positions.length,
+        start_date: null,
+        end_date: null,
+        creative_deadline: null,
       });
       setAdding(false);
       if (err) {
@@ -171,6 +318,19 @@ export default function MediaplanDetailPage() {
       setAddProductOpen(false);
     },
     [planId, positions.length, loadPositions]
+  );
+
+  const updatePositionDates = useCallback(
+    async (positionId: string, dates: { start_date?: string | null; end_date?: string | null; creative_deadline?: string | null }) => {
+      const supabase = createClient();
+      const { error: err } = await supabase
+        .from("mediaplan_positionen")
+        .update(dates)
+        .eq("id", positionId);
+      if (err) setError(err.message);
+      else await loadPositions();
+    },
+    [loadPositions]
   );
 
   const deletePosition = useCallback(
@@ -202,7 +362,7 @@ export default function MediaplanDetailPage() {
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           Fehler: {error}
         </div>
-        <Link href="/mediaplaene" className="mt-4 inline-block text-sm text-violet-600 hover:underline">
+        <Link href="/mediaplaene" className="mt-4 inline-block text-sm text-[#FF6554] hover:underline">
           ← Zurück zu Mediapläne
         </Link>
       </div>
@@ -213,7 +373,7 @@ export default function MediaplanDetailPage() {
     return (
       <div className="mx-auto max-w-6xl p-6">
         <p className="text-zinc-500">Mediaplan nicht gefunden.</p>
-        <Link href="/mediaplaene" className="mt-4 inline-block text-sm text-violet-600 hover:underline">
+        <Link href="/mediaplaene" className="mt-4 inline-block text-sm text-[#FF6554] hover:underline">
           ← Zurück zu Mediapläne
         </Link>
       </div>
@@ -228,7 +388,7 @@ export default function MediaplanDetailPage() {
             {plan.campaign ?? "Mediaplan"}
           </h1>
           <p className="mt-1 text-sm text-zinc-600">
-            {plan.client ?? "—"} | {formatDateRange(plan.date_range_start, plan.date_range_end)}
+            {plan.kunde_name ?? plan.client ?? "—"} | {formatDateRange(plan.date_range_start, plan.date_range_end)}
             {planId && <span className="ml-2 text-zinc-400">(ID: {planId.slice(0, 8)}…)</span>}
           </p>
         </div>
@@ -236,7 +396,7 @@ export default function MediaplanDetailPage() {
           <button
             type="button"
             onClick={nochNichtImplementiert}
-            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
+            className="rounded-full bg-[#FF6554] px-4 py-2 text-sm font-medium text-white hover:bg-[#e55a4a]"
           >
             Creative-Übersicht senden ({positions.length})
           </button>
@@ -246,7 +406,7 @@ export default function MediaplanDetailPage() {
               type="button"
               onClick={() => setViewMode("agentur")}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-                viewMode === "agentur" ? "bg-violet-100 text-violet-900" : "bg-zinc-100 text-zinc-600"
+                viewMode === "agentur" ? "bg-[#FF6554]/15 text-[#FF6554]" : "bg-zinc-100 text-zinc-600"
               }`}
             >
               Agentur-Ansicht
@@ -256,7 +416,7 @@ export default function MediaplanDetailPage() {
               onClick={() => setViewMode("kunde")}
               className="relative rounded-lg px-3 py-1.5 text-sm font-medium"
             >
-              <span className={viewMode === "kunde" ? "bg-violet-100 text-violet-900" : "bg-zinc-100 text-zinc-600"}>
+              <span className={viewMode === "kunde" ? "bg-[#FF6554]/15 text-[#FF6554]" : "bg-zinc-100 text-zinc-600"}>
                 Kunden-Ansicht
               </span>
               <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
@@ -267,7 +427,7 @@ export default function MediaplanDetailPage() {
           <button
             type="button"
             onClick={nochNichtImplementiert}
-            className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
             PDF Export (A3)
           </button>
@@ -275,7 +435,7 @@ export default function MediaplanDetailPage() {
       </header>
 
       {positions.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <div className="content-radius border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-semibold text-amber-900">
             Bestätigte Positionen ({positions.length})
           </p>
@@ -285,13 +445,13 @@ export default function MediaplanDetailPage() {
         </div>
       )}
 
-      <section className="grid gap-6 rounded-lg border-t-4 border-[#8026FE] bg-white p-6 lg:grid-cols-2">
+      <section className="haupt-box grid gap-6 p-6 lg:grid-cols-2">
         <div>
           <h3 className="text-sm font-semibold text-zinc-700">Kundeninformationen</h3>
           <dl className="mt-3 space-y-2 text-sm">
             <div>
               <dt className="text-zinc-500">Unternehmen:</dt>
-              <dd className="font-medium text-zinc-900">{plan.client ?? "—"}</dd>
+              <dd className="font-medium text-zinc-900">{plan.kunde_name ?? plan.client ?? "—"}</dd>
             </div>
             <div>
               <dt className="text-zinc-500">Status:</dt>
@@ -316,7 +476,7 @@ export default function MediaplanDetailPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border-t-4 border-[#8026FE] bg-white p-5">
+      <section className="haupt-box p-5">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-zinc-950">
             Bestätigte Positionen ({positions.length})
@@ -324,13 +484,13 @@ export default function MediaplanDetailPage() {
           <div className="flex gap-2">
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-0 border-none bg-zinc-100 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#f4f4f5_40%)]"
+              className="h-4 w-4 rounded border-0 border-none bg-zinc-100 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#f4f4f5_40%)]"
               aria-label="Alle auswählen"
             />
             <button
               type="button"
               onClick={nochNichtImplementiert}
-              className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+              className="rounded-full bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
             >
               Bulk Edit
             </button>
@@ -338,64 +498,26 @@ export default function MediaplanDetailPage() {
         </div>
         <ul className="mt-4 space-y-4">
           {positions.map((pos) => (
-            <li
+            <PositionListItem
               key={pos.id}
-              className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  className="mt-1 h-4 w-4 shrink-0 rounded border-0 border-none bg-zinc-100 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#8026FE] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#8026FE_40%,#f4f4f5_40%)]"
-                />
-                <span className="inline-block h-3 w-3 shrink-0 rounded-full bg-emerald-500" />
-                <div>
-                  <p className="font-medium text-zinc-950">{pos.title}</p>
-                  {pos.description && (
-                    <p className="text-sm text-zinc-600">{pos.description}</p>
-                  )}
-                  {pos.tag && (
-                    <span className="mt-1 inline-block rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">
-                      {pos.tag}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 sm:flex-nowrap">
-                {(pos.status_tags ?? []).map((s, i) => (
-                  <span key={i} className="rounded bg-zinc-100 px-2 py-0.5">
-                    {s}
-                  </span>
-                ))}
-              </div>
-              <div className="text-right text-sm">
-                {pos.brutto != null && <p className="text-zinc-500">Brutto {formatChf(pos.brutto)}</p>}
-                {pos.discount_text && <p className="text-zinc-500">{pos.discount_text}</p>}
-                <p className="font-semibold text-zinc-950">
-                  Kundenpreis {formatChf(pos.kundenpreis)}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => deletePosition(pos.id)}
-                className="rounded p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
-                aria-label="Löschen"
-              >
-                🗑
-              </button>
-            </li>
+              pos={pos}
+              formatChf={formatChf}
+              onDelete={() => deletePosition(pos.id)}
+              onUpdateDates={(dates) => updatePositionDates(pos.id, dates)}
+            />
           ))}
         </ul>
         <button
           type="button"
           onClick={openAddProduct}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-200 py-4 text-sm font-medium text-zinc-600 hover:border-violet-300 hover:bg-violet-50/30 hover:text-violet-700"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-200 py-4 text-sm font-medium text-zinc-600 hover:border-[#FF6554]/40 hover:bg-[#FF6554]/15 hover:text-[#FF6554]"
         >
           + Position aus Produktkatalog hinzufügen
         </button>
       </section>
 
-      <section className="grid gap-4 rounded-lg border-t-4 border-[#8026FE] bg-white p-5 sm:grid-cols-2">
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <section className="haupt-box grid gap-4 p-5 sm:grid-cols-2">
+        <div className="content-radius border border-zinc-200 bg-white p-4">
           <h3 className="text-sm font-semibold text-zinc-700">Einmalige Positionen</h3>
           <dl className="mt-3 space-y-1 text-sm">
             <div className="flex justify-between">
@@ -408,19 +530,19 @@ export default function MediaplanDetailPage() {
             </div>
           </dl>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="content-radius border border-zinc-200 bg-white p-4">
           <h3 className="text-sm font-semibold text-zinc-700">Agentur-Marge</h3>
           <p className="mt-3 text-2xl font-semibold text-zinc-950">—</p>
         </div>
       </section>
 
-      <section className="rounded-lg border-t-4 border-[#8026FE] bg-white p-6">
+      <section className="haupt-box p-6">
         <h3 className="text-lg font-semibold text-zinc-950">
           Notizen &amp; Kommentare zum Mediaplan ({COMMENTS.length})
         </h3>
         <ul className="mt-4 space-y-4">
           {COMMENTS.map((c, i) => (
-            <li key={i} className="border-l-2 border-violet-200 pl-4">
+            <li key={i} className="border-l-2 border-[#FF6554]/40 pl-4">
               <p className="text-sm font-medium text-zinc-900">{c.author}</p>
               <p className="text-xs text-zinc-500">{c.date}</p>
               <p className="mt-1 text-sm text-zinc-700">{c.text}</p>
@@ -435,7 +557,7 @@ export default function MediaplanDetailPage() {
           />
           <button
             type="button"
-            className="rounded-lg bg-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600"
+            className="rounded-full bg-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600"
             disabled
           >
             Senden
@@ -447,21 +569,21 @@ export default function MediaplanDetailPage() {
         <button
           type="button"
           onClick={nochNichtImplementiert}
-          className="rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          className="rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
         >
           📄 Als Entwurf speichern
         </button>
         <button
           type="button"
           onClick={nochNichtImplementiert}
-          className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
+          className="rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
         >
           ✓ Plan aktivieren
         </button>
         <button
           type="button"
           onClick={nochNichtImplementiert}
-          className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
+          className="rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
         >
           ↓ PDF exportieren
         </button>
@@ -498,7 +620,7 @@ export default function MediaplanDetailPage() {
                 return (
                   <li
                     key={prod.id}
-                    className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-zinc-200 p-3 hover:bg-violet-50"
+                    className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-zinc-200 p-3 hover:bg-[#FF6554]/10"
                     onClick={() => addProductAsPosition(prod)}
                   >
                     <div className="min-w-0">
@@ -507,7 +629,7 @@ export default function MediaplanDetailPage() {
                         {prod.category ?? "—"} · {formatChf(prod.preis_netto_chf)}
                       </p>
                     </div>
-                    <span className="shrink-0 text-sm text-violet-600">+ Hinzufügen</span>
+                    <span className="shrink-0 text-sm text-[#FF6554]">+ Hinzufügen</span>
                   </li>
                 );
               })}
@@ -516,7 +638,7 @@ export default function MediaplanDetailPage() {
               <button
                 type="button"
                 onClick={() => !adding && setAddProductOpen(false)}
-                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
               >
                 Schliessen
               </button>

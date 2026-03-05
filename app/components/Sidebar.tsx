@@ -1,24 +1,22 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
+import { usePathname } from "next/navigation";
+import { SidebarClock } from "./SidebarClock";
 
-const iconClass = "h-5 w-5 shrink-0";
+const iconClass = "h-7 w-7 shrink-0";
 
 export function SidebarLogo() {
   return (
     <Link
       href="/dashboard"
-      className="flex h-[130px] shrink-0 items-start px-3 pt-[30px] hover:opacity-90"
+      className="flex shrink-0 items-center justify-center pl-3 pt-6 pb-4 w-14 ml-[6px] hover:opacity-90"
       aria-label="Start"
     >
       <img
-        src="/coagmpa-new.svg"
-        alt="CO AG MP A"
-        className="h-[100px] w-auto max-w-[240px] object-contain object-left"
+        src="/icon-coag.svg"
+        alt="CO AG"
+        className="h-8 w-auto max-w-[120px] object-contain"
       />
     </Link>
   );
@@ -38,6 +36,11 @@ const icons = {
   document: (
     <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  ),
+  gantt: (
+    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5v14M4 5h16M4 9h6M4 13h10M4 17h8" />
     </svg>
   ),
   message: (
@@ -67,49 +70,57 @@ const icons = {
   ),
 };
 
+const backIcon = (
+  <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+  </svg>
+);
+
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: icons.dashboard },
-  { href: "/kunden", label: "Kunden", icon: icons.users },
-  { href: "/mediaplaene", label: "Mediapläne", icon: icons.document },
-  { href: "/kommunikation", label: "Kommunikation", icon: icons.message, badge: 2 },
+  { href: "/mediaplaene", label: "Mediapläne", icon: icons.gantt },
   { href: "/produkte", label: "Produkte", icon: icons.box },
-  { href: "/lieferanten", label: "Lieferanten", icon: icons.truck },
+  { href: "/kommunikation", label: "Kommunikation", icon: icons.message },
+  { href: "/kunden", label: "Kontakte", icon: icons.users },
   { href: "/finanzen", label: "Finanzen", icon: icons.currency },
-  { href: "/einstellungen/email-vorlagen", label: "E-Mail Vorlagen", icon: icons.mail },
 ] as const;
-
-function initials(email: string | undefined): string {
-  if (!email) return "?";
-  const part = email.split("@")[0];
-  if (part.length >= 2) return part.slice(0, 2).toUpperCase();
-  return part ? part.slice(0, 1).toUpperCase() : "?";
-}
 
 export function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const segments = pathname.split("/").filter(Boolean);
+  const showBack = segments.length > 1;
+  const parentHref = showBack ? "/" + segments.slice(0, -1).join("/") : "/";
 
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u));
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
-    return () => subscription.unsubscribe();
-  }, []);
-
-  async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
-  }
+  /* Back-Zeile: gleiche Höhe wie Hauptbox-Start (Header 5rem + main pt-[80px] = 160px). Logo ~88px → Spacer 72px. */
+  const contentTopOffset = 160;
+  const logoHeight = 88;
+  const spacerHeight = contentTopOffset - logoHeight;
+  const backRowHeight = 56 + 12; /* h-14 + gap-3 */
+  const extraSlotHeight = 56 + 12; /* Platz für einen zusätzlichen Button (h-14 + gap-3) */
 
   return (
-    <aside className="sticky top-0 flex h-screen w-64 flex-col border-r border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+    <aside className="layout-bg sticky top-0 flex h-screen w-64 flex-col">
       <SidebarLogo />
-      <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-3 pt-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div style={{ height: spacerHeight }} aria-hidden />
+        <div className="flex items-center gap-3 px-3 shrink-0" style={{ height: backRowHeight }}>
+          {showBack && (
+            <Link
+              href={parentHref}
+              className="group flex shrink-0 items-center justify-start"
+              title="Zurück"
+              aria-label="Zurück"
+            >
+              <span className="flex h-14 w-14 shrink-0 items-center gap-0 rounded-[500px] transition-all duration-200 bg-white text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100 group-hover:bg-zinc-100 dark:group-hover:bg-zinc-700">
+                <span className="grid h-14 w-14 shrink-0 place-items-center [&_svg]:col-start-1 [&_svg]:row-start-1 [&_svg]:block [&_svg]:h-7 [&_svg]:w-7 [&_svg]:shrink-0">
+                  {backIcon}
+                </span>
+              </span>
+            </Link>
+          )}
+        </div>
+        <div style={{ height: extraSlotHeight }} aria-hidden />
+        <nav className="flex flex-1 flex-col items-center gap-3 p-3 pt-0">
         {NAV.map((item) => {
           const { href, label, icon } = item;
           const badge = "badge" in item ? item.badge : undefined;
@@ -119,45 +130,34 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                active
-                  ? "bg-violet-100 dark:bg-violet-900/40 text-violet-900 dark:text-violet-200"
-                  : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
-              }`}
+              className="group flex w-full items-center justify-start"
+              title={label}
             >
-              <span className={active ? "text-violet-600 dark:text-violet-400" : "text-zinc-500 dark:text-zinc-400"}>{icon}</span>
-              <span className="flex-1">{label}</span>
-              {badge != null && badge > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-semibold text-white">
-                  {badge}
+              <span
+                className={`flex h-14 w-14 shrink-0 items-center gap-0 rounded-[500px] transition-all duration-200 group-hover:w-auto group-hover:max-w-[200px] group-hover:pr-5 ${
+                  active
+                    ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+                    : "bg-white text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+                }`}
+              >
+                <span className="grid h-14 w-14 shrink-0 place-items-center [&_svg]:col-start-1 [&_svg]:row-start-1 [&_svg]:block [&_svg]:h-7 [&_svg]:w-7 [&_svg]:shrink-0">
+                  {icon}
                 </span>
-              )}
+                <span className="max-w-0 overflow-hidden opacity-0 transition-all duration-200 group-hover:max-w-[140px] group-hover:opacity-100 text-sm font-medium truncate">
+                  {label}
+                </span>
+                {badge != null && badge > 0 && (
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-semibold text-white">
+                    {badge}
+                  </span>
+                )}
+              </span>
             </Link>
           );
         })}
-      </nav>
-      <div className="mt-auto shrink-0 bg-white dark:bg-zinc-900 p-3">
-        <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/50 text-sm font-semibold text-violet-900 dark:text-violet-200">
-            {user ? initials(user.email ?? "") : "—"}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-              {user?.user_metadata?.full_name ?? user?.email ?? "Gast"}
-            </p>
-            {user?.email && (
-              <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{user.email}</p>
-            )}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="mt-2 w-full rounded-lg border border-zinc-200 dark:border-zinc-600 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-        >
-          Abmelden
-        </button>
+        </nav>
       </div>
+      <SidebarClock />
     </aside>
   );
 }

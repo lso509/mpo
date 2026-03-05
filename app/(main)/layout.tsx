@@ -44,7 +44,7 @@ export default function MainLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         <div
           className="shrink-0 overflow-hidden transition-[height] duration-200 ease-out"
-          style={{ height: headerVisible ? "3rem" : "0" }}
+          style={{ height: headerVisible ? "5rem" : "0" }}
         >
           <Header />
         </div>
@@ -52,7 +52,9 @@ export default function MainLayout({
           ref={scrollRef}
           className="min-w-0 flex-1 overflow-auto"
         >
-          <main className="min-h-full p-6 dark:bg-zinc-900/80">{children}</main>
+          <main className="min-h-full pt-[80px] px-6 pb-6 dark:bg-zinc-900/80">
+            {children}
+          </main>
         </div>
       </div>
     </div>

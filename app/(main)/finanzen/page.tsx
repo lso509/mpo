@@ -106,7 +106,7 @@ export default function FinanzenPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`relative border-b-2 px-4 py-3 text-sm font-medium transition ${
                 activeTab === tab.id
-                  ? "border-violet-600 text-violet-600"
+                  ? "border-[#FF6554] text-[#FF6554]"
                   : "border-transparent text-zinc-600 hover:text-zinc-900"
               }`}
             >
@@ -123,14 +123,14 @@ export default function FinanzenPage() {
           <button
             type="button"
             onClick={nochNichtImplementiert}
-            className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
             DATEV Export
           </button>
           <button
             type="button"
             onClick={nochNichtImplementiert}
-            className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
             Excel Export
           </button>
@@ -143,7 +143,7 @@ export default function FinanzenPage() {
             {KPI_CARDS.map((kpi) => (
               <div
                 key={kpi.label}
-                className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
+                className="haupt-box border border-zinc-200 p-5 shadow-sm"
               >
                 <div className="flex items-start justify-between">
                   <div>
@@ -168,7 +168,7 @@ export default function FinanzenPage() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+            <section className="haupt-box border border-zinc-200 p-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-zinc-950">
                   Abrechenbare Positionen
@@ -176,7 +176,7 @@ export default function FinanzenPage() {
                 <button
                   type="button"
                   onClick={nochNichtImplementiert}
-                  className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
+                  className="rounded-full bg-[#FF6554] px-4 py-2 text-sm font-medium text-white hover:bg-[#e55a4a]"
                 >
                   + Rechnung erstellen
                 </button>
@@ -196,14 +196,14 @@ export default function FinanzenPage() {
               </ul>
             </section>
 
-            <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+            <section className="haupt-box border border-zinc-200 p-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-zinc-950">
                   Zu prüfende Eingangsrechnungen
                 </h2>
                 <Link
                   href="/finanzen/eingangsrechnungen"
-                  className="text-sm font-medium text-violet-600 hover:underline"
+                  className="text-sm font-medium text-[#FF6554] hover:underline"
                 >
                   Alle anzeigen &gt;
                 </Link>
@@ -249,7 +249,7 @@ export default function FinanzenPage() {
           <button
             type="button"
             onClick={nochNichtImplementiert}
-            className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
+            className="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800"
           >
             + Neue Rechnung
           </button>

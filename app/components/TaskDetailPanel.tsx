@@ -1,7 +1,7 @@
 "use client";
 
 import { nochNichtImplementiert } from "@/lib/not-implemented";
-
+import Link from "next/link";
 import { useState } from "react";
 
 type TaskStatus = "Offen" | "Erledigt" | "Nicht relevant";
@@ -17,6 +17,8 @@ type Task = {
   dueDate: string;
   assignee: string;
   section: TaskSection;
+  email_vorlage_id?: string | null;
+  email_vorlage_title?: string | null;
 };
 
 const TASK_TYPES = [
@@ -69,7 +71,7 @@ export function TaskDetailPanel({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+            className="rounded-full p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
             aria-label="Schließen"
           >
             ✕
@@ -109,21 +111,35 @@ export function TaskDetailPanel({
               </select>
             </div>
 
-            <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
-              <p className="text-sm font-semibold text-violet-900">
-                E-Mail Vorlage verfügbar
-              </p>
-              <p className="mt-1 text-xs text-violet-700">
-                Neue Position zur Freigabe an Kunde
-              </p>
-              <button
-                type="button"
-                onClick={nochNichtImplementiert}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-700"
-              >
-                ✉ E-Mail Vorlage öffnen
-              </button>
-            </div>
+            {task.email_vorlage_id && task.email_vorlage_title ? (
+              <div className="content-radius border border-[#FF6554]/30 bg-[#FF6554]/10 p-4">
+                <p className="text-sm font-semibold text-[#FF6554]">
+                  E-Mail Vorlage verfügbar
+                </p>
+                <p className="mt-1 text-xs text-[#e55a4a]">
+                  {task.email_vorlage_title}
+                </p>
+                <Link
+                  href={`/kommunikation/email-vorlagen/${task.email_vorlage_id}`}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-[#FF6554] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#e55a4a]"
+                >
+                  ✉ E-Mail Vorlage öffnen
+                </Link>
+              </div>
+            ) : (
+              <div className="content-radius border border-zinc-200 bg-zinc-50 p-4">
+                <p className="text-sm font-medium text-zinc-700">
+                  Keine E-Mail-Vorlage mit dieser Aufgabe verknüpft.
+                </p>
+                <button
+                  type="button"
+                  onClick={nochNichtImplementiert}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                >
+                  ✉ E-Mail Vorlagen verwalten
+                </button>
+              </div>
+            )}
 
             <div className="grid gap-2">
               <label className="text-xs font-medium text-zinc-500">Status</label>
@@ -191,7 +207,7 @@ export function TaskDetailPanel({
               <button
                 type="button"
                 onClick={nochNichtImplementiert}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-zinc-200 bg-zinc-50 py-4 text-sm font-medium text-zinc-600 hover:border-violet-300 hover:bg-violet-50/50 hover:text-violet-800"
+                className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-dashed border-zinc-200 bg-zinc-50 py-4 text-sm font-medium text-zinc-600 hover:border-[#FF6554]/40 hover:bg-[#FF6554]/10 hover:text-[#FF6554]"
               >
                 ↑ Dokument hochladen
               </button>
@@ -220,7 +236,7 @@ export function TaskDetailPanel({
           <button
             type="button"
             onClick={onSave}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-800 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-900"
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-zinc-800 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-900"
           >
             💾 Speichern
           </button>

@@ -16,6 +16,16 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+### Google Login auf Localhost
+
+Damit nach dem Google-Login nicht auf die Live-URL umgeleitet wird:
+
+1. **Supabase:** Im Projekt unter **Authentication → URL Configuration → Redirect URLs** eintragen:
+   - `http://localhost:3000/auth/callback` (ggf. auch `http://localhost:3001/auth/callback` etc.)
+
+2. **Optional:** In `.env.local` setzen, damit die Redirect-URL fest auf Localhost zeigt:
+   - `NEXT_PUBLIC_APP_URL=http://localhost:3000`
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
