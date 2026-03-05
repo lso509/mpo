@@ -123,7 +123,7 @@ export function Sidebar() {
         <nav className="flex flex-1 flex-col items-center gap-3 p-3 pt-0">
         {NAV.map((item) => {
           const { href, label, icon } = item;
-          const badge = "badge" in item ? item.badge : undefined;
+          const badge = "badge" in item && typeof item.badge === "number" ? item.badge : undefined;
           const active =
             pathname === href || pathname.startsWith(href + "/");
           return (
