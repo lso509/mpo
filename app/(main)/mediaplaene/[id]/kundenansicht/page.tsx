@@ -758,14 +758,16 @@ export default function MediaplanKundenansichtPage() {
       .from("produkte")
       .select("id, category, kategorie, name, produktvariante_titel, verlag, kanal, produktgruppe, platzierung, position, zusatzinformationen, ziel_eignung, creative_farbe, creative_dateityp, creative_groesse, creative_typ, creative_deadline_tage, creative_deadline_date, size, laufzeit_pro_einheit, preis_brutto_chf, preis_netto_chf, preis_agenturservice, empfohlenes_medienbudget, buchungsvoraussetzung, beispiel_bild, creative_groesse_einheit, waehrung")
       .in("id", ids)
-      .then(({ data }) => {
-        const map: Record<string, CatalogProduct> = {};
-        for (const row of data ?? []) {
-          map[(row as { id: string }).id] = row as CatalogProduct;
-        }
-        setCatalogProductMap(map);
-      })
-      .catch(() => setCatalogProductMap({}));
+      .then(
+        ({ data }) => {
+          const map: Record<string, CatalogProduct> = {};
+          for (const row of data ?? []) {
+            map[(row as { id: string }).id] = row as CatalogProduct;
+          }
+          setCatalogProductMap(map);
+        },
+        () => setCatalogProductMap({})
+      );
   }, [positions]);
 
   const totalKundenpreis = useMemo(
