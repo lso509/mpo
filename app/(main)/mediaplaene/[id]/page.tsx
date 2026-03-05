@@ -503,7 +503,8 @@ function PositionListItem({
       stepKey === "1"
         ? (["Offen", "Freigegeben", "Erledigt", "N/A"] as const)
         : (["Offen", "Erledigt", "N/A"] as const);
-    const idx = order.indexOf(current as (typeof order)[number]);
+    const idx = order.indexOf(current);
+    if (idx === -1) return order[0];
     return order[(idx + 1) % order.length];
   };
   const getProzessStatus = (stepKey: string) => prozessStatus[stepKey] || "Offen";
