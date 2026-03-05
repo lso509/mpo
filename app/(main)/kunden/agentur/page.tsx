@@ -31,18 +31,28 @@ export default function AgenturMitarbeiterPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .rpc("get_agency_profiles")
-      .then(({ data, error: err }) => {
+    let mounted = true;
+    async function load() {
+      try {
+        const supabase = createClient();
+        const { data, error: err } = await supabase.rpc("get_agency_profiles");
+        if (!mounted) return;
         if (err) {
           setError(err.message);
           setUsers([]);
         } else {
           setUsers((data as AgencyUser[]) ?? []);
         }
-      })
-      .finally(() => setLoading(false));
+      } catch (e) {
+        if (mounted) setError(e instanceof Error ? e.message : "Fehler");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return (

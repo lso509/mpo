@@ -16,7 +16,7 @@ export function SidebarLogo() {
       <img
         src="/icon-coag.svg"
         alt="CO AG"
-        className="h-8 w-auto max-w-[120px] object-contain"
+        className="h-8 w-auto max-w-[120px] object-contain dark:invert"
       />
     </Link>
   );

@@ -60,7 +60,7 @@ function LoginForm() {
         <img
           src="/mediaiq.svg"
           alt="MediaIQ"
-          className="h-auto w-full max-w-[120px] dark:opacity-95"
+          className="h-auto w-full max-w-[120px] dark:invert dark:opacity-95"
           width={146}
           height={114}
         />
@@ -165,7 +165,7 @@ export default function LoginPage() {
       fallback={
         <div className="flex w-full max-w-sm flex-col items-center">
           <div className="mb-6 flex justify-center">
-            <img src="/mediaiq.svg" alt="" className="h-auto w-full max-w-[120px] dark:opacity-95" width={146} height={114} />
+            <img src="/mediaiq.svg" alt="" className="h-auto w-full max-w-[120px] dark:invert dark:opacity-95" width={146} height={114} />
           </div>
           <div className="w-full content-radius haupt-box border border-zinc-200 dark:border-zinc-700 p-6 dark:bg-zinc-800/80">
             <p className="text-zinc-500 dark:text-zinc-400">Laden…</p>
