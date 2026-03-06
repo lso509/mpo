@@ -13,6 +13,9 @@ type FeedbackEintrag = {
   kategorie: string;
   beschreibung: string;
   seite: string | null;
+  target: string | null;
+  position_x: number | null;
+  position_y: number | null;
   status: string;
 };
 
@@ -38,6 +41,7 @@ export default function AdminFeedbackPage() {
   const [error, setError] = useState<string | null>(null);
   const [filterKategorie, setFilterKategorie] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("");
+  const [filterTarget, setFilterTarget] = useState<string>("");
 
   const isAgency = (role?.toLowerCase?.() ?? "") === "agency";
 
@@ -45,7 +49,7 @@ export default function AdminFeedbackPage() {
     const supabase = createClient();
     const { data, error: err } = await supabase
       .from("feedback_eintraege")
-      .select("id, created_at, user_id, user_name, kategorie, beschreibung, seite, status")
+      .select("id, created_at, user_id, user_name, kategorie, beschreibung, seite, target, position_x, position_y, status")
       .order("created_at", { ascending: false });
     if (err) {
       setError(err.message);
@@ -82,8 +86,13 @@ export default function AdminFeedbackPage() {
   const filtered = eintraege.filter((e) => {
     if (filterKategorie && e.kategorie !== filterKategorie) return false;
     if (filterStatus && e.status !== filterStatus) return false;
+    if (filterTarget && (e.target ?? "") !== filterTarget) return false;
     return true;
   });
+
+  const targetOptions = Array.from(
+    new Set(eintraege.map((e) => e.target).filter((t): t is string => !!t))
+  ).sort();
 
   if (userLoading || (!isAgency && user)) {
     return (
@@ -143,6 +152,21 @@ export default function AdminFeedbackPage() {
             ))}
           </select>
         </label>
+        <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+          <span>Ort (Target):</span>
+          <select
+            value={filterTarget}
+            onChange={(e) => setFilterTarget(e.target.value)}
+            className="rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-zinc-900 dark:text-zinc-100"
+          >
+            <option value="">Alle</option>
+            {targetOptions.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {loading ? (
@@ -156,6 +180,8 @@ export default function AdminFeedbackPage() {
                   <th className="px-4 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Datum</th>
                   <th className="px-4 py-3 font-semibold text-zinc-700 dark:text-zinc-300">User</th>
                   <th className="px-4 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Kategorie</th>
+                  <th className="px-4 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Ort (Target)</th>
+                  <th className="px-4 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Position</th>
                   <th className="px-4 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Seite</th>
                   <th className="px-4 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Beschreibung</th>
                   <th className="px-4 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Status</th>
@@ -186,8 +212,32 @@ export default function AdminFeedbackPage() {
                         {e.kategorie}
                       </span>
                     </td>
-                    <td className="max-w-[120px] truncate px-4 py-3 text-zinc-600 dark:text-zinc-400" title={e.seite ?? ""}>
-                      {e.seite || "—"}
+                    <td className="max-w-[140px] truncate px-4 py-3 text-zinc-600 dark:text-zinc-400" title={e.target ?? ""}>
+                      {e.target || "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                      {e.target === "overlay" && e.position_x != null && e.position_y != null
+                        ? `${Number(e.position_x).toFixed(0)}%, ${Number(e.position_y).toFixed(0)}%`
+                        : "—"}
+                    </td>
+                    <td className="max-w-[180px] px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                      {e.seite ? (
+                        <span className="flex items-center gap-2">
+                          <span className="truncate" title={e.seite}>
+                            {e.seite}
+                          </span>
+                          {e.target === "overlay" && e.position_x != null && e.position_y != null && (
+                            <a
+                              href={`${e.seite}#feedback-${e.id}`}
+                              className="shrink-0 rounded-full bg-[#FF6554] px-2 py-0.5 text-xs font-medium text-white hover:bg-[#e55a4a]"
+                            >
+                              Zum Pin
+                            </a>
+                          )}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="max-w-[280px] px-4 py-3 text-zinc-900 dark:text-zinc-100">
                       <span className="line-clamp-2">{e.beschreibung}</span>

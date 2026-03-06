@@ -17,6 +17,14 @@ export function categoryLabel(category: string): string {
   return category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
 }
 
+export type ProduktDateiMeta = {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+  uploaded_at: string;
+};
+
 export const KANAL_OPTIONS = ["Plakat", "Screen", "Online", "Kino", "Print", "Sonstige"];
 export const ZIEL_EIGNUNG_OPTIONS = ["Sichtbarkeit", "Traffic", "Conversion", "Sonstige"];
 export const LAUFZEIT_OPTIONS = ["1 Woche", "2 Wochen", "1 Monat", "3 Monate", "6 Monate", "1 Jahr"];
@@ -31,6 +39,10 @@ export type Product = {
   produktgruppe: string | null;
   produktvarianteTitel: string | null;
   beispielBild: string | null;
+  /** Öffentliche URL des Produktbilds (Supabase Storage). */
+  bildUrl: string | null;
+  /** Mediadatenblätter: [{ name, path, size, type, uploaded_at }]. */
+  dateien: ProduktDateiMeta[];
   platzierung: string | null;
   position: string | null;
   zusatzinformationen: string | null;
@@ -107,6 +119,10 @@ export function mapRow(row: Record<string, unknown>): Product {
     produktgruppe: row.produktgruppe != null ? String(row.produktgruppe) : null,
     produktvarianteTitel: name ? String(name) : null,
     beispielBild: row.beispiel_bild != null ? String(row.beispiel_bild) : null,
+    bildUrl: row.bild_url != null ? String(row.bild_url) : null,
+    dateien: Array.isArray(row.dateien)
+      ? (row.dateien as ProduktDateiMeta[])
+      : (typeof row.dateien === "string" ? (JSON.parse(row.dateien || "[]") as ProduktDateiMeta[]) : []),
     platzierung: row.platzierung != null ? String(row.platzierung) : null,
     position: row.position != null ? String(row.position) : null,
     zusatzinformationen: row.zusatzinformationen != null ? String(row.zusatzinformationen) : null,
@@ -141,6 +157,8 @@ export function productToRow(p: Partial<Product>): Record<string, unknown> {
     produktvariante_titel: p.produktvarianteTitel ?? null,
     name: p.produktvarianteTitel ?? null,
     beispiel_bild: p.beispielBild ?? null,
+    bild_url: p.bildUrl ?? null,
+    dateien: p.dateien ?? [],
     platzierung: p.platzierung ?? null,
     position: p.position ?? null,
     zusatzinformationen: p.zusatzinformationen ?? null,
@@ -229,6 +247,8 @@ export const emptyProduct: Partial<Product> = {
   produktgruppe: null,
   produktvarianteTitel: null,
   beispielBild: null,
+  bildUrl: null,
+  dateien: [],
   platzierung: null,
   position: null,
   zusatzinformationen: null,

@@ -2,45 +2,74 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/hooks/useUser";
-import { useCallback, useState } from "react";
+import { useFeedback } from "@/app/context/FeedbackContext";
+import { useCallback, useEffect, useState } from "react";
 
 const KATEGORIEN = ["Bug", "Idee", "Verbesserung"] as const;
 type Kategorie = (typeof KATEGORIEN)[number];
 
 export function FeedbackWidget() {
   const { user, loading } = useUser();
-  const [open, setOpen] = useState(false);
+  const {
+    open,
+    initialTarget,
+    initialPosition,
+    openFeedback,
+    closeFeedback,
+    startOverlayMode,
+  } = useFeedback();
   const [kategorie, setKategorie] = useState<Kategorie | null>(null);
   const [beschreibung, setBeschreibung] = useState("");
+  const [target, setTarget] = useState("");
   const [sending, setSending] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  const isOverlayPosition = initialPosition != null;
+
+  useEffect(() => {
+    if (open) {
+      setSuccess(false);
+      setKategorie(null);
+      setBeschreibung("");
+      setTarget(initialTarget ?? "");
+    }
+  }, [open, initialTarget]);
+
   const handleOpen = useCallback(() => {
-    setOpen(true);
-    setSuccess(false);
-    setKategorie(null);
-    setBeschreibung("");
-  }, []);
+    openFeedback();
+  }, [openFeedback]);
 
   const handleClose = useCallback(() => {
-    setOpen(false);
     setSuccess(false);
     setKategorie(null);
     setBeschreibung("");
-  }, []);
+    setTarget("");
+    closeFeedback();
+  }, [closeFeedback]);
+
+  const handleStartOverlay = useCallback(() => {
+    handleClose();
+    startOverlayMode();
+  }, [handleClose, startOverlayMode]);
 
   const handleSubmit = useCallback(async () => {
     if (!kategorie || !beschreibung.trim()) return;
     setSending(true);
     const supabase = createClient();
     const seite = typeof window !== "undefined" ? window.location.pathname : "";
-    const { error } = await supabase.from("feedback_eintraege").insert({
+    const payload: Record<string, unknown> = {
       user_id: user?.id ?? null,
       user_name: user?.user_metadata?.full_name ?? user?.email ?? null,
       kategorie,
       beschreibung: beschreibung.trim(),
       seite: seite || null,
-    });
+      target: isOverlayPosition ? "overlay" : (target.trim() || null),
+    };
+    if (isOverlayPosition && initialPosition) {
+      payload.position_x = initialPosition.x;
+      payload.position_y = initialPosition.y;
+    }
+    const { error } = await supabase.from("feedback_eintraege").insert(payload);
     setSending(false);
     if (error) {
       console.error("Feedback senden:", error);
@@ -49,8 +78,9 @@ export function FeedbackWidget() {
     setSuccess(true);
     setBeschreibung("");
     setKategorie(null);
+    setTarget("");
     setTimeout(handleClose, 1500);
-  }, [kategorie, beschreibung, user, handleClose]);
+  }, [kategorie, beschreibung, target, user, handleClose, isOverlayPosition, initialPosition]);
 
   if (loading || !user) return null;
 
@@ -103,7 +133,24 @@ export function FeedbackWidget() {
               </p>
             ) : (
               <>
-                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Kategorie wählen</p>
+                <button
+                  type="button"
+                  onClick={handleStartOverlay}
+                  className="mt-2 w-full rounded-xl border-2 border-dashed border-[#FF6554]/50 bg-[#FF6554]/5 py-3 text-sm font-medium text-[#FF6554] hover:bg-[#FF6554]/10 dark:border-[#FF6554]/40 dark:bg-[#FF6554]/10 dark:hover:bg-[#FF6554]/20"
+                >
+                  📍 Stelle auf der Seite markieren
+                </button>
+                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  Öffnet ein Overlay – klicke dann auf die gewünschte Stelle. Das Feedback wird dort für alle sichtbar.
+                </p>
+
+                {isOverlayPosition && (
+                  <p className="mt-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
+                    ✓ Feedback wird an der markierten Stelle angezeigt.
+                  </p>
+                )}
+
+                <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">Kategorie wählen</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {KATEGORIEN.map((k) => (
                     <button
@@ -120,6 +167,24 @@ export function FeedbackWidget() {
                     </button>
                   ))}
                 </div>
+
+                {!isOverlayPosition && (
+                  <>
+                    <label className="mt-4 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Ort (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={target}
+                      onChange={(e) => setTarget(e.target.value)}
+                      placeholder="z.B. button-speichern, header-aktionen"
+                      className="mt-1 w-full rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-[#FF6554] focus:outline-none focus:ring-1 focus:ring-[#FF6554]"
+                    />
+                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      Wird das Feedback an dieser Stelle in der App angezeigt (für alle sichtbar).
+                    </p>
+                  </>
+                )}
 
                 <label className="mt-4 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
                   Beschreibung

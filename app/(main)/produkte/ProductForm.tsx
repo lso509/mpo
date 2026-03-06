@@ -18,6 +18,9 @@ import {
   type TaskVorlage,
   ZIEL_EIGNUNG_OPTIONS,
 } from "@/lib/produkte";
+import { ProduktBildUpload } from "@/app/components/produkte/ProduktBildUpload";
+import { ProduktDateienUpload } from "@/app/components/produkte/ProduktDateienUpload";
+import { FeedbackMarker } from "@/app/components/FeedbackMarker";
 
 type AenderungshistorieEntry = {
   id: string;
@@ -59,7 +62,7 @@ export function ProductForm({
 }: ProductFormProps) {
   return (
     <form
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+      className="flex flex-1 flex-col"
       onSubmit={(e) => {
         e.preventDefault();
         onSave(false, false);
@@ -126,14 +129,22 @@ export function ProductForm({
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Beispiel (Platzhalter für Bild)</label>
-              <textarea
-                value={product.beispielBild ?? ""}
-                onChange={(e) => setField("beispielBild", e.target.value)}
-                rows={2}
-                className="mt-1 w-full rounded-3xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Produktbild</label>
+              <ProduktBildUpload
+                produktId={productId}
+                bildUrl={product.bildUrl ?? null}
+                onBildUrlChange={(url) => setField("bildUrl", url)}
+                disabled={saving}
               />
-              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">Platzhalter für zukünftige Bildfunktion.</p>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Mediadatenblätter &amp; Dateien</label>
+              <ProduktDateienUpload
+                produktId={productId}
+                dateien={product.dateien ?? []}
+                onDateienChange={(list) => setField("dateien", list)}
+                disabled={saving}
+              />
             </div>
           </div>
         </section>
@@ -556,6 +567,7 @@ export function ProductForm({
           >
             {isNew ? "Neues Produkt speichern" : "Speichern"}
           </button>
+          <FeedbackMarker target="produkte.speichern" />
         </div>
       </div>
     </form>

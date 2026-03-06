@@ -276,7 +276,7 @@ export default function ProduktBearbeitenPage() {
           {error}
         </div>
       )}
-      <div className="content-radius haupt-box flex h-[calc(100vh-11rem)] min-h-0 flex-col border border-zinc-200 dark:border-zinc-700 shadow-none mb-10">
+      <div className="content-radius haupt-box border border-zinc-200 dark:border-zinc-700 shadow-none mb-10">
       <ProductForm
         product={product}
         setField={setField}
