@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/hooks/useUser";
 import { nochNichtImplementiert } from "@/lib/not-implemented";
 import { MediaplanPDFButton } from "@/components/MediaplanPDFButton";
+import type { AenderungshistorieEntry, CatalogProduct, MediaplanRow, PositionRow } from "@/lib/mediaplan/types";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -16,72 +17,11 @@ function beraterInitials(email: string | undefined): string {
   return part ? part.slice(0, 1).toUpperCase() : "?";
 }
 
-type AenderungshistorieEntry = {
-  id: string;
-  created_at: string;
-  changed_by: string | null;
-  change_description: string;
-};
-
 type AgencyUser = {
   id: string;
   full_name: string | null;
   email: string | null;
   avatar_url?: string | null;
-};
-
-type MediaplanRow = {
-  id: string;
-  client: string | null;
-  kunde_id: string | null;
-  kunde_name: string | null;
-  status: string | null;
-  campaign: string | null;
-  date_range_start: string | null;
-  date_range_end: string | null;
-  kunde_adresse: string | null;
-  kunde_email: string | null;
-  kunde_telefon: string | null;
-  berater_name: string | null;
-  berater_position: string | null;
-  berater_email: string | null;
-  berater_telefon: string | null;
-  berater_mobil: string | null;
-  kunde_ap_name: string | null;
-  kunde_ap_position: string | null;
-  kunde_ap_email: string | null;
-  kunde_ap_telefon: string | null;
-  kunde_ap_mobil: string | null;
-};
-
-type PositionRow = {
-  id: string;
-  mediaplan_id: string;
-  produkt_id: string | null;
-  title: string;
-  description: string | null;
-  tag: string | null;
-  brutto: number | null;
-  discount_text: string | null;
-  kundenpreis: number | null;
-  status_tags: string[] | null;
-  sort_order: number;
-  start_date: string | null;
-  end_date: string | null;
-  creative_deadline: string | null;
-  kampagnenname?: string | null;
-  ziel?: string | null;
-  creative_verantwortung?: string | null;
-  agentur?: string | null;
-  menge_volumen?: string | null;
-  anzahl_einheiten?: number | null;
-  werberadius?: string | null;
-  zielgruppeninformationen?: string | null;
-  zusatzinformationen_kunde?: string | null;
-  rabatt_prozent?: number | null;
-  rabatt_agentur_prozent?: number | null;
-  agenturgebuehr?: number | null;
-  prozess_status?: Record<string, string> | null;
 };
 
 /** Farbe für Prozessschritt 1–10: Verlauf von Hellrot (1) bis Hellgrün (10) */
@@ -113,38 +53,6 @@ const PROZESS_SCHRITTE: { key: string; label: string }[] = [
   { key: "9", label: "Reporting geschickt" },
   { key: "10", label: "Eingangsrechnung" },
 ];
-
-/** Produkt aus Katalog (Produktbibliothek) für Anzeige "Produktinformationen aus Katalog" */
-type CatalogProduct = {
-  id: string;
-  category: string | null;
-  kategorie: string | null;
-  name: string | null;
-  produktvariante_titel: string | null;
-  verlag: string | null;
-  kanal: string | null;
-  produktgruppe: string | null;
-  platzierung: string | null;
-  position: string | null;
-  zusatzinformationen: string | null;
-  ziel_eignung: string | null;
-  creative_farbe: string | null;
-  creative_dateityp: string | null;
-  creative_groesse: string | null;
-  creative_typ: string | null;
-  creative_deadline_tage: number | null;
-  creative_deadline_date: string | null;
-  size: string | null;
-  laufzeit_pro_einheit: string | null;
-  preis_brutto_chf: number | null;
-  preis_netto_chf: number | null;
-  preis_agenturservice: number | null;
-  empfohlenes_medienbudget: string | null;
-  buchungsvoraussetzung: string | null;
-  beispiel_bild: string | null;
-  creative_groesse_einheit?: string | null;
-  waehrung?: string | null;
-};
 
 type ProductRow = {
   id: string;

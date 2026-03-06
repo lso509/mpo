@@ -1,0 +1,21 @@
+---
+description: Styling und UI (Tailwind, globals.css, Design-Tokens)
+globs: app/**/*.tsx, app/**/*.css
+alwaysApply: false
+---
+
+# Styling & UI
+
+## Design-Tokens (globals.css)
+- Akzent: `var(--accent)`, Hover `var(--accent-hover)`; für dezente Flächen `var(--accent-muted)`.
+- Layout: `var(--layout-bg)` für Seitenhintergrund, `var(--haupt-box-bg)` für Sektionen.
+- Sektionen/Cards: Klasse `.haupt-box` (Hintergrund + 40px Radius, squircle).
+- Buttons: global Pill-Form; kein zusätzliches Padding in globals vorgeben, pro Button bei Bedarf Tailwind (z. B. `px-4 py-2`).
+
+## Tailwind
+- Tailwind 4 mit `@import "tailwindcss"`; Theme/Farben in `globals.css` mit `@theme inline` abgestimmt.
+- Dark Mode: `dark:` Varianten für Text, Hintergründe und Borders verwenden, wo die App dunkel dargestellt wird (z. B. `dark:bg-zinc-800`, `dark:text-zinc-200`).
+- Einheitliche Abstände und Lesbarkeit: bestehende Muster (z. B. `px-6 pb-6`, `rounded-full` für Buttons/Pills) beibehalten.
+
+## Sprache
+- Alle sichtbaren UI-Texte, Platzhalter, Buttons und Fehlermeldungen auf **Deutsch** (z. B. „Laden…“, „Speichern“, „Neues Produkt“).

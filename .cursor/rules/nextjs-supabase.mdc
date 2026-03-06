@@ -1,0 +1,22 @@
+---
+description: Next.js App Router und Supabase-Nutzung
+globs: app/**/*.tsx, app/**/*.ts, lib/**/*.ts
+alwaysApply: false
+---
+
+# Next.js & Supabase
+
+## Supabase Client
+- **Server Components / Server Actions:** `import { createClient } from "@/lib/supabase/server";` – pro Request nutzen, keine Singleton-Caches.
+- **Client Components:** `import { createClient } from "@/lib/supabase/client";` – nur in `"use client"`-Komponenten.
+
+## useSearchParams und Prerender
+- `useSearchParams()` nur in Client Components verwenden.
+- Wenn die Route statisch prerendered wird (z. B. `/produkte`, `/finanzen`): Komponente, die `useSearchParams` nutzt, in `<Suspense fallback={…}>` packen (z. B. im Layout oder Parent).
+- Alternativ für die Route: `export const dynamic = "force-dynamic"` im Layout oder in der Page des Segments.
+
+## Dynamische Routen
+- Seiten, die Redirects, Auth-Checks oder requestabhängige Daten nutzen und nicht statisch sein sollen: im zugehörigen Layout oder in der Page `export const dynamic = "force-dynamic"` setzen (z. B. `/dashboard`, `/einstellungen/email-vorlagen`, `/kommunikation/email-vorlagen`).
+
+## Typen
+- Supabase-`PromiseLike` hat kein `.finally()`. Statt `.then(...).finally(...)` async/await mit try/finally oder explizites `Promise.resolve(...).then(...)` nutzen.

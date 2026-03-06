@@ -1,0 +1,13 @@
+---
+description: Bei "deploy" nur GitHub (commit + push), nie Vercel
+alwaysApply: true
+---
+
+# Deploy = nur GitHub
+
+Wenn der Nutzer **"deploy"** oder **"github deploy"** schreibt:
+
+- **Nur:** Änderungen stagen, committen und nach GitHub pushen (`git add`, `git commit`, `git push origin main`).
+- **Nicht:** Zu Vercel oder einem anderen Hosting-Dienst deployen (kein `vercel`, kein `npx vercel`, kein anderes Deploy-Tool aufrufen).
+
+Deploy-Ziel ist ausschließlich das GitHub-Repository.

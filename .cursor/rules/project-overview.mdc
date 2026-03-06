@@ -1,0 +1,29 @@
+---
+description: Projekt-Stack, Struktur und Design-System (MediaPlan App)
+alwaysApply: true
+---
+
+# MediaPlan App – Projekt-Überblick
+
+## Stack
+- **Next.js 16** (App Router), **React 19**, **TypeScript**, **Tailwind CSS 4**
+- **Supabase** (Auth, DB): `@/lib/supabase/server` (Server Components), `@/lib/supabase/client` (Client Components)
+- UI-Texte und Labels auf **Deutsch**
+
+## App-Struktur
+- `app/(main)/` – Hauptbereich mit Sidebar + Header (Layout in `app/(main)/layout.tsx`)
+- `app/(auth)/` – Login, Signup (eigenes Layout)
+- `app/components/` – gemeinsame Komponenten (Header, Sidebar, SearchField, …)
+- Routen z. B.: `/dashboard`, `/produkte`, `/mediaplaene`, `/kommunikation`, `/finanzen`, `/kunden`, `/einstellungen`
+
+## Design
+- **Akzentfarbe:** `#FF6554` (CSS-Variable `--accent`, Hover `--accent-hover`)
+- **Hintergründe:** `--layout-bg`, `--haupt-box-bg`; Sektionen: Klasse `.haupt-box` (40px Radius, squircle)
+- **Buttons:** Pill-Form (vollständig abgerundet) via `globals.css`
+- **Schriften:** Nunito Sans (variable `--font-nunito-sans`), Geist Mono für Code
+- Dark Mode: Tailwind `dark:` wo nötig; Farben in `globals.css` mit `prefers-color-scheme: dark`
+
+## Konventionen
+- Supabase: Server-Client nur über `createClient()` aus dem jeweiligen `lib/supabase/*`-Modul
+- `useSearchParams()` nur in Client Components; bei Nutzung in Layouts oder statisch prerenderbaren Seiten: Komponente in `<Suspense>` kapseln oder Route `dynamic = "force-dynamic"`
+- Dynamische Routen, die nicht statisch prerenderbar sind: in Segment-Layout oder Page `export const dynamic = "force-dynamic"` setzen
