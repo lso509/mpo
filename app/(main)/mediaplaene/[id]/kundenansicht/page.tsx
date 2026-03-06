@@ -6,6 +6,7 @@ import { nochNichtImplementiert } from "@/lib/not-implemented";
 import { MediaplanPDFButton } from "@/components/MediaplanPDFButton";
 import type { AenderungshistorieEntry, CatalogProduct, MediaplanRow, PositionRow } from "@/lib/mediaplan/types";
 import { beraterInitials, formatChf, formatDateRange, getISOWeek, getMonday, getTimelineRange, freigabeStatus } from "@/lib/mediaplan/utils";
+import { useMediaplanData } from "@/hooks/useMediaplanData";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -396,15 +397,27 @@ function PositionCardKunde({
 
 export default function MediaplanKundenansichtPage() {
   const params = useParams();
-  const planId = typeof params.id === "string" ? params.id : null;
-  const [plan, setPlan] = useState<MediaplanRow | null>(null);
-  const [positions, setPositions] = useState<PositionRow[]>([]);
-  const [catalogProductMap, setCatalogProductMap] = useState<Record<string, CatalogProduct>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const planId = typeof params.id === "string" ? params.id : "";
+  const {
+    plan,
+    positions,
+    catalogProductMap,
+    aenderungshistorie,
+    loading,
+    error,
+    setError,
+    loadPlan,
+    loadPositions,
+    loadAenderungshistorie,
+    totalKundenpreis,
+    bestaetigtSumme,
+    ausstehendSumme,
+    totalRabatt,
+    gesamtEinmalig,
+    freigabeStatus,
+  } = useMediaplanData(planId);
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
   const { user } = useUser();
-  const [aenderungshistorie, setAenderungshistorie] = useState<AenderungshistorieEntry[]>([]);
   const [editKundenInfo, setEditKundenInfo] = useState(false);
   const [savingKundenInfo, setSavingKundenInfo] = useState(false);
   const [kundenForm, setKundenForm] = useState({
@@ -418,29 +431,6 @@ export default function MediaplanKundenansichtPage() {
     kunde_ap_telefon: "",
     kunde_ap_mobil: "",
   });
-
-  const loadPlan = useCallback(async () => {
-    if (!planId) return;
-    const supabase = createClient();
-    const { data, error: err } = await supabase
-      .from("mediaplaene")
-      .select("id, client, kunde_id, status, campaign, date_range_start, date_range_end, kunde_adresse, kunde_email, kunde_telefon, kunde_ap_name, kunde_ap_position, kunde_ap_email, kunde_ap_telefon, kunde_ap_mobil, berater_name, berater_position, berater_email, berater_telefon, berater_mobil")
-      .eq("id", planId)
-      .single();
-    if (err) {
-      setError(err.message);
-      setPlan(null);
-      return;
-    }
-    const row = data as MediaplanRow & { kunde_id?: string };
-    if (row.kunde_id) {
-      const { data: kData } = await supabase.from("kunden").select("name").eq("id", row.kunde_id).single();
-      row.kunde_name = kData?.name ?? null;
-    } else {
-      row.kunde_name = null;
-    }
-    setPlan(row);
-  }, [planId]);
 
   useEffect(() => {
     if (!plan) return;
@@ -456,33 +446,6 @@ export default function MediaplanKundenansichtPage() {
       kunde_ap_mobil: plan.kunde_ap_mobil ?? "",
     });
   }, [plan?.id, plan?.kunde_name, plan?.client, plan?.kunde_adresse, plan?.kunde_email, plan?.kunde_telefon, plan?.kunde_ap_name, plan?.kunde_ap_position, plan?.kunde_ap_email, plan?.kunde_ap_telefon, plan?.kunde_ap_mobil]);
-
-  const loadPositions = useCallback(async () => {
-    if (!planId) return;
-    const supabase = createClient();
-    const { data, error: err } = await supabase
-      .from("mediaplan_positionen")
-      .select("*")
-      .eq("mediaplan_id", planId)
-      .order("sort_order", { ascending: true });
-    if (err) {
-      setError(err.message);
-      setPositions([]);
-      return;
-    }
-    setPositions((data ?? []) as PositionRow[]);
-  }, [planId]);
-
-  const loadAenderungshistorie = useCallback(async () => {
-    if (!planId) return;
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("mediaplan_aenderungshistorie")
-      .select("id, created_at, changed_by, change_description")
-      .eq("mediaplan_id", planId)
-      .order("created_at", { ascending: false });
-    setAenderungshistorie((data ?? []) as AenderungshistorieEntry[]);
-  }, [planId]);
 
   const updatePlanKundenInfo = useCallback(async () => {
     if (!planId) return;
@@ -568,58 +531,6 @@ export default function MediaplanKundenansichtPage() {
     setFreigabeForPositions(selectedPositionIds, "ablehnung");
   }, [selectedPositionIds, setFreigabeForPositions]);
 
-  useEffect(() => {
-    if (!planId) {
-      setLoading(false);
-      return;
-    }
-    Promise.all([loadPlan(), loadPositions(), loadAenderungshistorie()]).finally(() => setLoading(false));
-  }, [planId, loadPlan, loadPositions, loadAenderungshistorie]);
-
-  useEffect(() => {
-    const ids = [...new Set(positions.map((p) => p.produkt_id).filter(Boolean) as string[])];
-    if (ids.length === 0) {
-      setCatalogProductMap({});
-      return;
-    }
-    const supabase = createClient();
-    supabase
-      .from("produkte")
-      .select("id, category, kategorie, name, produktvariante_titel, verlag, kanal, produktgruppe, platzierung, position, zusatzinformationen, ziel_eignung, creative_farbe, creative_dateityp, creative_groesse, creative_typ, creative_deadline_tage, creative_deadline_date, size, laufzeit_pro_einheit, preis_brutto_chf, preis_netto_chf, preis_agenturservice, empfohlenes_medienbudget, buchungsvoraussetzung, beispiel_bild, creative_groesse_einheit, waehrung")
-      .in("id", ids)
-      .then(
-        ({ data }) => {
-          const map: Record<string, CatalogProduct> = {};
-          for (const row of data ?? []) {
-            map[(row as { id: string }).id] = row as CatalogProduct;
-          }
-          setCatalogProductMap(map);
-        },
-        () => setCatalogProductMap({})
-      );
-  }, [positions]);
-
-  const totalKundenpreis = useMemo(
-    () => positions.reduce((s, p) => s + (p.kundenpreis ?? 0), 0),
-    [positions]
-  );
-
-  const { bestaetigtSumme, ausstehendSumme, totalRabatt } = useMemo(() => {
-    let bestaetigt = 0;
-    let ausstehend = 0;
-    let rabatt = 0;
-    for (const p of positions) {
-      const status1 = (p.prozess_status && typeof p.prozess_status === "object" && p.prozess_status["1"]) || "Offen";
-      const isBestaetigt = status1 === "Freigegeben" || status1 === "Erledigt";
-      const k = p.kundenpreis ?? 0;
-      if (isBestaetigt) bestaetigt += k;
-      else ausstehend += k;
-      const b = p.brutto ?? 0;
-      if (b > k) rabatt += b - k;
-    }
-    return { bestaetigtSumme: bestaetigt, ausstehendSumme: ausstehend, totalRabatt: rabatt };
-  }, [positions]);
-
   const budgetByGoal = useMemo(() => {
     const map: Record<string, { sum: number; count: number }> = {};
     for (const p of positions) {
@@ -635,8 +546,6 @@ export default function MediaplanKundenansichtPage() {
   }, [positions]);
 
   const maxBudgetGoal = Math.max(1, ...budgetByGoal.map((g) => g.sum));
-  /** Gesamt einmalig = nur freigegebene Positionen */
-  const gesamtEinmalig = bestaetigtSumme;
 
   const positionenZurFreigabeCount = useMemo(
     () => positions.filter((p) => freigabeStatus(p) === "Offen").length,
