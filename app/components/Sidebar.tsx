@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useUser } from "@/hooks/useUser";
 import { SidebarClock } from "./SidebarClock";
 
 const iconClass = "h-7 w-7 shrink-0";
@@ -10,14 +11,18 @@ export function SidebarLogo() {
   return (
     <Link
       href="/dashboard"
-      className="flex shrink-0 items-center justify-center pl-3 pt-6 pb-4 w-14 ml-[6px] hover:opacity-90"
+      className="flex shrink-0 flex-col items-start gap-2 pl-3 pt-6 pb-4 pr-3 ml-[6px] hover:opacity-90"
       aria-label="Start"
     >
       <img
         src="/icon-coag.svg"
         alt="CO AG"
-        className="h-8 w-auto max-w-[120px] object-contain dark:invert"
+        className="h-8 w-auto max-w-[120px] object-contain object-left dark:invert"
       />
+      <span className="text-left text-[11px] leading-tight font-medium text-zinc-700 dark:text-zinc-300">
+        <span className="block">Lokale Expertise</span>
+        <span className="block">internationales Werbefeuer</span>
+      </span>
     </Link>
   );
 }
@@ -71,6 +76,11 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
     </svg>
   ),
+  feedback: (
+    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+    </svg>
+  ),
 };
 
 const backIcon = (
@@ -90,6 +100,8 @@ const NAV = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { role } = useUser();
+  const isAgency = (role?.toLowerCase?.() ?? "") === "agency";
   const segments = pathname.split("/").filter(Boolean);
   const showBack = segments.length > 1;
   const parentHref = showBack ? "/" + segments.slice(0, -1).join("/") : "/";
@@ -158,6 +170,28 @@ export function Sidebar() {
             </Link>
           );
         })}
+        {isAgency && (
+          <Link
+            href="/admin/feedback"
+            className="group flex w-full items-center justify-start"
+            title="Feedback verwalten"
+          >
+            <span
+              className={`flex h-14 w-14 shrink-0 items-center gap-0 rounded-[500px] transition-all duration-200 group-hover:w-auto group-hover:max-w-[200px] group-hover:pr-5 ${
+                pathname === "/admin/feedback" || pathname.startsWith("/admin/feedback/")
+                  ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+                  : "bg-white text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+              }`}
+            >
+              <span className="grid h-14 w-14 shrink-0 place-items-center [&_svg]:col-start-1 [&_svg]:row-start-1 [&_svg]:block [&_svg]:h-7 [&_svg]:w-7 [&_svg]:shrink-0">
+                {icons.feedback}
+              </span>
+              <span className="max-w-0 overflow-hidden opacity-0 transition-all duration-200 group-hover:max-w-[140px] group-hover:opacity-100 text-sm font-medium truncate">
+                Feedback
+              </span>
+            </span>
+          </Link>
+        )}
         </nav>
       </div>
       <SidebarClock />

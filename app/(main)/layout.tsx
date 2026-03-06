@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Header } from "../components/Header";
 import { Sidebar } from "../components/Sidebar";
+import { FeedbackWidget } from "../components/FeedbackWidget";
 
 export default function MainLayout({
   children,
@@ -57,6 +58,7 @@ export default function MainLayout({
           </main>
         </div>
       </div>
+      <FeedbackWidget />
     </div>
   );
 }
