@@ -5,13 +5,14 @@ import { useUser } from "@/hooks/useUser";
 import { nochNichtImplementiert } from "@/lib/not-implemented";
 import { MediaplanPDFButton } from "@/components/MediaplanPDFButton";
 import type { AenderungshistorieEntry, CatalogProduct, MediaplanRow, PositionRow } from "@/lib/mediaplan/types";
-import { beraterInitials, formatChf, formatDateRange, freigabeStatus } from "@/lib/mediaplan/utils";
+import { formatChf, formatDateRange, freigabeStatus } from "@/lib/mediaplan/utils";
 import { useMediaplanData } from "@/hooks/useMediaplanData";
 import { Aenderungshistorie } from "@/components/shared/Aenderungshistorie";
 import { MediaplanBudgetOverview } from "@/components/mediaplan/MediaplanBudgetOverview";
 import { MediaplanPageHeader } from "@/components/mediaplan/MediaplanPageHeader";
 import { GanttChart } from "@/components/mediaplan/GanttChart";
 import { MediaplanKundenInfo } from "@/components/mediaplan/MediaplanKundenInfo";
+import { MediaplanKundenberater } from "@/components/mediaplan/MediaplanKundenberater";
 import { PositionCatalogInfo } from "@/components/mediaplan/PositionCatalogInfo";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -399,24 +400,7 @@ export default function MediaplanKundenansichtPage() {
           onFormChange={(field, value) => setKundenForm((f) => ({ ...f, [field]: value }))}
           saving={savingKundenInfo}
         />
-        <div className="content-radius border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
-          <h4 className="mb-3 border-b border-zinc-200 dark:border-zinc-600 pb-2 text-base font-semibold text-zinc-950 dark:text-zinc-100">Kundenberater</h4>
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-600">
-              <span className="flex h-full w-full items-center justify-center text-sm font-semibold text-zinc-600 dark:text-zinc-400">
-                {plan.berater_name || plan.berater_email ? beraterInitials(plan.berater_email ?? plan.berater_name ?? undefined) : "—"}
-              </span>
-            </div>
-            <div className="min-w-0 text-sm">
-              <p className="font-medium text-zinc-900 dark:text-zinc-100">
-                {plan.berater_name ?? "—"}
-              </p>
-              <p className="text-zinc-600 dark:text-zinc-400">
-                {plan.berater_email ?? "—"}
-              </p>
-            </div>
-          </div>
-        </div>
+        <MediaplanKundenberater plan={plan} readOnly />
       </div>
 
       <div className="content-radius haupt-box space-y-4 border border-zinc-200 dark:border-zinc-700 p-4 shadow-none sm:p-5">
