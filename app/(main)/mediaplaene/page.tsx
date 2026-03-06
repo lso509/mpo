@@ -252,9 +252,10 @@ export default function MediaplaenePage() {
         ) : (
           <div className="mt-6 space-y-4">
             {visiblePlans.map((plan) => (
-              <article
+              <Link
                 key={plan.id}
-                className="content-radius flex flex-col gap-4 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-5 sm:flex-row sm:items-center sm:justify-between"
+                href={`/mediaplaene/${plan.id}`}
+                className="content-radius flex flex-col gap-4 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-5 sm:flex-row sm:items-center sm:justify-between block cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-700/80"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -290,21 +291,11 @@ export default function MediaplaenePage() {
                     <p className="text-zinc-500 dark:text-zinc-400">Agentur-Marge —</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/mediaplaene/${plan.id}`)}
-                      className="rounded-full border border-zinc-200 dark:border-zinc-600 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
-                      title="Bearbeiten"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                        <path d="m15 5 4 4" />
-                      </svg>
-                    </button>
-                    <div className="relative">
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           setOpenMenuId((prev) => (prev === plan.id ? null : plan.id));
                         }}
@@ -358,7 +349,7 @@ export default function MediaplaenePage() {
                     </div>
                   </div>
                 </div>
-              </article>
+              </Link>
             ))}
             {visiblePlans.length === 0 && (
             <p className="text-zinc-500 dark:text-zinc-400">
