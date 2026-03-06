@@ -11,6 +11,7 @@ import { Aenderungshistorie } from "@/components/shared/Aenderungshistorie";
 import { MediaplanBudgetOverview } from "@/components/mediaplan/MediaplanBudgetOverview";
 import { MediaplanPageHeader } from "@/components/mediaplan/MediaplanPageHeader";
 import { GanttChart } from "@/components/mediaplan/GanttChart";
+import { MediaplanKundenInfo } from "@/components/mediaplan/MediaplanKundenInfo";
 import { PositionCatalogInfo } from "@/components/mediaplan/PositionCatalogInfo";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -387,87 +388,17 @@ export default function MediaplanKundenansichtPage() {
       )}
 
       <div className="mb-4 grid gap-4 sm:grid-cols-2">
-        <div className="content-radius border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
-          <div className="mb-3 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-600 pb-2">
-            <h4 className="text-base font-semibold text-zinc-950 dark:text-zinc-100">Kunden Infos</h4>
-            {!editKundenInfo ? (
-              <button
-                type="button"
-                onClick={() => setEditKundenInfo(true)}
-                className="rounded-full border border-zinc-300 dark:border-zinc-600 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
-                title="Bearbeiten"
-                aria-label="Bearbeiten"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                  <path d="m15 5 4 4" />
-                </svg>
-              </button>
-            ) : (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditKundenInfo(false)}
-                  className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updatePlanKundenInfo()}
-                  disabled={savingKundenInfo}
-                  className="rounded-full bg-[#FF6554] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#e55a4a] disabled:opacity-60"
-                >
-                  {savingKundenInfo ? "Speichern…" : "Speichern"}
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {!editKundenInfo ? (
-              <>
-                <dl className="space-y-2 text-sm">
-                  <div><dt className="text-zinc-500 dark:text-zinc-400">Unternehmen</dt><dd className="font-medium text-zinc-900 dark:text-zinc-100">{plan.kunde_name ?? plan.client ?? "—"}</dd></div>
-                  <div><dt className="text-zinc-500 dark:text-zinc-400">Adresse</dt><dd className="whitespace-pre-line font-medium text-zinc-900 dark:text-zinc-100">{plan.kunde_adresse ?? "—"}</dd></div>
-                  <div><dt className="text-zinc-500 dark:text-zinc-400">Hauptnummer</dt><dd className="font-medium text-zinc-900 dark:text-zinc-100">{plan.kunde_telefon ?? "—"}</dd></div>
-                </dl>
-                <dl className="space-y-2 text-sm">
-                  <div>
-                    <dt className="text-zinc-500 dark:text-zinc-400">Ansprechpartner</dt>
-                    <dd className="mt-1 whitespace-pre-line font-medium text-zinc-900 dark:text-zinc-100">
-                      {[plan.kunde_ap_name, plan.kunde_ap_position, plan.kunde_ap_email, plan.kunde_ap_telefon ?? plan.kunde_ap_mobil].filter(Boolean).join("\n") || "—"}
-                    </dd>
-                  </div>
-                </dl>
-              </>
-            ) : (
-              <>
-                <div className="space-y-3 text-sm">
-                  <label className="block">
-                    <span className="block text-xs text-zinc-500 dark:text-zinc-400">Unternehmen</span>
-                    <input type="text" value={kundenForm.client} onChange={(e) => setKundenForm((f) => ({ ...f, client: e.target.value }))} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="z. B. Salt Mobile AG" />
-                  </label>
-                  <label className="block">
-                    <span className="block text-xs text-zinc-500 dark:text-zinc-400">Adresse</span>
-                    <textarea value={kundenForm.kunde_adresse} onChange={(e) => setKundenForm((f) => ({ ...f, kunde_adresse: e.target.value }))} rows={3} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="Strasse, PLZ Ort, Land" />
-                  </label>
-                  <label className="block">
-                    <span className="block text-xs text-zinc-500 dark:text-zinc-400">Hauptnummer</span>
-                    <input type="text" value={kundenForm.kunde_telefon} onChange={(e) => setKundenForm((f) => ({ ...f, kunde_telefon: e.target.value }))} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="+41 800 700 700" />
-                  </label>
-                </div>
-                <div className="space-y-3 text-sm">
-                  <span className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Ansprechpartner</span>
-                  <input type="text" value={kundenForm.kunde_ap_name} onChange={(e) => setKundenForm((f) => ({ ...f, kunde_ap_name: e.target.value }))} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="Name" aria-label="Ansprechpartner Name" />
-                  <input type="text" value={kundenForm.kunde_ap_position} onChange={(e) => setKundenForm((f) => ({ ...f, kunde_ap_position: e.target.value }))} className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="Position" aria-label="Position" />
-                  <input type="email" value={kundenForm.kunde_ap_email} onChange={(e) => setKundenForm((f) => ({ ...f, kunde_ap_email: e.target.value }))} className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="E-Mail" aria-label="E-Mail" />
-                  <input type="text" value={kundenForm.kunde_ap_telefon} onChange={(e) => setKundenForm((f) => ({ ...f, kunde_ap_telefon: e.target.value }))} className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="Telefon" aria-label="Telefon" />
-                  <input type="text" value={kundenForm.kunde_ap_mobil} onChange={(e) => setKundenForm((f) => ({ ...f, kunde_ap_mobil: e.target.value }))} className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="Mobil" aria-label="Mobil" />
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <MediaplanKundenInfo
+          plan={plan}
+          mode="kunde"
+          editing={editKundenInfo}
+          form={kundenForm}
+          onStartEdit={() => setEditKundenInfo(true)}
+          onSave={() => updatePlanKundenInfo()}
+          onCancel={() => setEditKundenInfo(false)}
+          onFormChange={(field, value) => setKundenForm((f) => ({ ...f, [field]: value }))}
+          saving={savingKundenInfo}
+        />
         <div className="content-radius border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
           <h4 className="mb-3 border-b border-zinc-200 dark:border-zinc-600 pb-2 text-base font-semibold text-zinc-950 dark:text-zinc-100">Kundenberater</h4>
           <div className="flex items-center gap-3">
