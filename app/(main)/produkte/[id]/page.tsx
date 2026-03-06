@@ -60,10 +60,19 @@ export default function ProduktBearbeitenPage() {
     onConfirmCreate: () => void;
   } | null>(null);
   const [existingProducts, setExistingProducts] = useState<Product[]>([]);
+  const [verlagOptions, setVerlagOptions] = useState<string[]>([]);
   const initialSelectedTasksRef = useRef<ProduktTaskConfig[]>([]);
 
   const setField = useCallback(<K extends keyof Product>(key: K, value: Product[K]) => {
     setProduct((prev) => (prev ? { ...prev, [key]: value } : null));
+  }, []);
+
+  // Lieferanten für Verlag-Dropdown laden
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.from("lieferanten").select("firmenname").order("firmenname").then(({ data }) => {
+      setVerlagOptions((data ?? []).map((r) => (r as { firmenname: string }).firmenname));
+    });
   }, []);
 
   // Load product (when editing), duplicate (when new?duplicate=id), or set empty (when new)
@@ -291,6 +300,7 @@ export default function ProduktBearbeitenPage() {
         aenderungshistorie={aenderungshistorie}
         fuzzyMatchThreshold={fuzzyMatchThreshold}
         setFuzzyMatchThreshold={setFuzzyMatchThreshold}
+        verlagOptions={verlagOptions}
       />
       </div>
 

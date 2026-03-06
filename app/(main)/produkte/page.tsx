@@ -2,6 +2,7 @@
 
 import { NeuesProduktButton } from "@/app/components/NeuesProduktButton";
 import { createClient } from "@/lib/supabase/client";
+import { categoryLabel as libCategoryLabel } from "@/lib/produkte";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
@@ -17,12 +18,7 @@ const CATEGORIES = [
   "CUSTOM",
 ];
 
-function categoryLabel(category: string): string {
-  if (!category) return category;
-  return category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
-}
-
-const KANAL_OPTIONS = ["Plakat", "Screen", "Online", "Kino", "Print", "Sonstige"];
+const categoryLabel = libCategoryLabel;
 const ZIEL_EIGNUNG_OPTIONS = ["Sichtbarkeit", "Traffic", "Conversion", "Sonstige"];
 const LAUFZEIT_OPTIONS = ["1 Woche", "2 Wochen", "1 Monat", "3 Monate", "6 Monate", "1 Jahr"];
 
@@ -950,24 +946,23 @@ export default function ProduktePage() {
                       {items.map((p) => (
                         <article
                           key={p.id}
-                          className="content-radius border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-4"
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Produkt bearbeiten: ${displayName(p)}`}
+                          onClick={() => router.push(`/produkte/${p.id}`)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              router.push(`/produkte/${p.id}`);
+                            }
+                          }}
+                          className="content-radius border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-4 cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-700/80"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <h3 className="font-semibold text-zinc-950 dark:text-zinc-100 min-w-0">
                               {displayName(p)}
                             </h3>
-                            <div className="flex shrink-0 items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => router.push(`/produkte/${p.id}`)}
-                                className="rounded-full border border-zinc-200 dark:border-zinc-600 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
-                                title="Bearbeiten"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                                  <path d="m15 5 4 4" />
-                                </svg>
-                              </button>
+                            <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
                               <div className="relative">
                                 <button
                                   type="button"

@@ -8,6 +8,9 @@ import {
   getDefaultTaskConfig,
   KANAL_OPTIONS,
   LAUFZEIT_OPTIONS,
+  PRODUKTGRUPPE_OPTIONS,
+  USE_CASE_OPTIONS,
+  VERLAG_OPTIONS,
   type Product,
   type ProduktTaskConfig,
   REFERENZ_OPTIONS,
@@ -43,6 +46,8 @@ type ProductFormProps = {
   aenderungshistorie: AenderungshistorieEntry[];
   fuzzyMatchThreshold?: number;
   setFuzzyMatchThreshold?: (v: number) => void;
+  /** Lieferanten-Firmennamen aus DB (für Verlag-Dropdown). Falls leer, wird VERLAG_OPTIONS verwendet. */
+  verlagOptions?: string[];
 };
 
 export function ProductForm({
@@ -59,7 +64,9 @@ export function ProductForm({
   aenderungshistorie,
   fuzzyMatchThreshold = DEFAULT_FUZZY_THRESHOLD,
   setFuzzyMatchThreshold,
+  verlagOptions: verlagOptionsProp,
 }: ProductFormProps) {
+  const verlagOptionsList = (verlagOptionsProp?.length ? verlagOptionsProp : VERLAG_OPTIONS) as string[];
   return (
     <form
       className="flex flex-1 flex-col"
@@ -98,13 +105,20 @@ export function ProductForm({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Verlag</label>
-              <input
-                type="text"
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Verlag (Lieferant)</label>
+              <select
                 value={product.verlag ?? ""}
-                onChange={(e) => setField("verlag", e.target.value)}
+                onChange={(e) => setField("verlag", e.target.value || null)}
                 className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
-              />
+              >
+                <option value="">—</option>
+                {product.verlag && !verlagOptionsList.includes(product.verlag) && (
+                  <option value={product.verlag}>{product.verlag}</option>
+                )}
+                {verlagOptionsList.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Kanal (Werbeform)</label>
@@ -121,11 +135,56 @@ export function ProductForm({
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Produktgruppe</label>
-              <input
-                type="text"
+              <select
                 value={product.produktgruppe ?? ""}
-                onChange={(e) => setField("produktgruppe", e.target.value)}
+                onChange={(e) => setField("produktgruppe", e.target.value || null)}
                 className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+              >
+                <option value="">—</option>
+                {PRODUKTGRUPPE_OPTIONS.map((pg) => (
+                  <option key={pg} value={pg}>{pg}</option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Use Case</p>
+              <ul className="mt-1 space-y-1.5">
+                {USE_CASE_OPTIONS.map((opt) => {
+                  const selected = (product.useCase ?? []).includes(opt);
+                  return (
+                    <li key={opt} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`use-case-${opt.replace(/\s+/g, "-")}`}
+                        checked={selected}
+                        onChange={() => {
+                          const current = product.useCase ?? [];
+                          const next = selected
+                            ? current.filter((x) => x !== opt)
+                            : [...current, opt];
+                          setField("useCase", next);
+                        }}
+                        className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#3f3f46_40%)]"
+                      />
+                      <label
+                        htmlFor={`use-case-${opt.replace(/\s+/g, "-")}`}
+                        className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300"
+                      >
+                        {opt}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Produktbeschreibung</label>
+              <textarea
+                value={product.produktbeschreibung ?? ""}
+                onChange={(e) => setField("produktbeschreibung", e.target.value || null)}
+                rows={3}
+                placeholder="Kurze Beschreibung des Produkts …"
+                className="mt-1 w-full rounded-2xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-[#FF6554] focus:outline-none focus:ring-1 focus:ring-[#FF6554]"
               />
             </div>
             <div className="sm:col-span-2">
@@ -531,7 +590,8 @@ export function ProductForm({
         )}
       </div>
 
-      <div className="sticky z-10 shrink-0 px-6 pt-6 pb-8" style={{ bottom: "50px" }}>
+      {/* Fixed am unteren Viewport-Rand, links ab Sidebar (w-64) */}
+      <div className="fixed bottom-0 left-64 right-0 z-30 px-6 py-4">
         <div className="flex flex-wrap justify-end gap-2">
           <button
             type="button"

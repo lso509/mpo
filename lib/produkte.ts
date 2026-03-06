@@ -25,7 +25,69 @@ export type ProduktDateiMeta = {
   uploaded_at: string;
 };
 
-export const KANAL_OPTIONS = ["Plakat", "Screen", "Online", "Kino", "Print", "Sonstige"];
+/** Optionen für das Verlag-Dropdown (Lieferanten). Entspricht den Lieferanten aus Kunden → Lieferanten. */
+export const VERLAG_OPTIONS = [
+  "Amazon Advertising",
+  "Goldbach Media",
+  "Google Ads",
+  "Ströer Media",
+];
+
+/** Optionen für das Kanal-Dropdown (Werbeform). */
+export const KANAL_OPTIONS = [
+  "Plakat",
+  "LED Screen",
+  "Buswerbung",
+  "Online Bannerwerbung",
+  "Google Suchanzeigen",
+  "Online In-Read Werbung",
+  "Print Inserat",
+  "Sponsoring",
+  "Screen-FL",
+  "Screen-CH",
+  "Screen-AT",
+  "Plakate-AT",
+  "Plakate-FL/CH",
+  "Plakate-FL",
+  "Plakate",
+  "Kino-FL + CH",
+  "Kino AT",
+  "Kino FL",
+  "Buswerbung-FL",
+  "Print-FL",
+  "Print-FL/CH",
+  "Print-AT",
+  "Online",
+  "Handling",
+];
+
+/** Optionen für das Produktgruppe-Dropdown. */
+export const PRODUKTGRUPPE_OPTIONS = [
+  "Liewo",
+  "Vaterland",
+  "Wirtschaft Regional",
+  "Screen-FL",
+  "Screen-CH",
+  "Screen-AT",
+  "Plakate-AT",
+  "Plakate-FL/CH",
+  "Plakate-FL",
+  "Plakate",
+  "Kino-FL + CH",
+  "Kino AT",
+  "Kino FL",
+  "Buswerbung-FL",
+  "Print-FL",
+  "Print-FL/CH",
+  "Print-AT",
+  "Online",
+  "Handling",
+];
+
+/** Optionen für Use Case (Mehrfachauswahl). */
+export const USE_CASE_OPTIONS = ["Event", "Employer Branding", "Recruiting"] as const;
+export type UseCaseOption = (typeof USE_CASE_OPTIONS)[number];
+
 export const ZIEL_EIGNUNG_OPTIONS = ["Sichtbarkeit", "Traffic", "Conversion", "Sonstige"];
 export const LAUFZEIT_OPTIONS = ["1 Woche", "2 Wochen", "1 Monat", "3 Monate", "6 Monate", "1 Jahr"];
 
@@ -37,6 +99,10 @@ export type Product = {
   verlag: string | null;
   kanal: string | null;
   produktgruppe: string | null;
+  /** Use Cases (Mehrfachauswahl): z.B. ["Event", "Employer Branding"]. */
+  useCase: string[];
+  /** Freitext Produktbeschreibung. */
+  produktbeschreibung: string | null;
   produktvarianteTitel: string | null;
   beispielBild: string | null;
   /** Öffentliche URL des Produktbilds (Supabase Storage). */
@@ -117,6 +183,10 @@ export function mapRow(row: Record<string, unknown>): Product {
     verlag: row.verlag != null ? String(row.verlag) : null,
     kanal: row.kanal != null ? String(row.kanal) : null,
     produktgruppe: row.produktgruppe != null ? String(row.produktgruppe) : null,
+    useCase: Array.isArray(row.use_case)
+      ? (row.use_case as string[]).filter((s): s is string => typeof s === "string")
+      : [],
+    produktbeschreibung: row.produktbeschreibung != null ? String(row.produktbeschreibung) : null,
     produktvarianteTitel: name ? String(name) : null,
     beispielBild: row.beispiel_bild != null ? String(row.beispiel_bild) : null,
     bildUrl: row.bild_url != null ? String(row.bild_url) : null,
@@ -154,6 +224,8 @@ export function productToRow(p: Partial<Product>): Record<string, unknown> {
     verlag: p.verlag ?? null,
     kanal: p.kanal ?? null,
     produktgruppe: p.produktgruppe ?? null,
+    use_case: p.useCase ?? [],
+    produktbeschreibung: p.produktbeschreibung ?? null,
     produktvariante_titel: p.produktvarianteTitel ?? null,
     name: p.produktvarianteTitel ?? null,
     beispiel_bild: p.beispielBild ?? null,
@@ -245,6 +317,8 @@ export const emptyProduct: Partial<Product> = {
   verlag: null,
   kanal: null,
   produktgruppe: null,
+  useCase: [],
+  produktbeschreibung: null,
   produktvarianteTitel: null,
   beispielBild: null,
   bildUrl: null,
