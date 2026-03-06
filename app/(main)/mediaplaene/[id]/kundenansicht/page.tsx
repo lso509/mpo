@@ -9,6 +9,7 @@ import { beraterInitials, formatChf, formatDateRange, getISOWeek, getMonday, get
 import { useMediaplanData } from "@/hooks/useMediaplanData";
 import { Aenderungshistorie } from "@/components/shared/Aenderungshistorie";
 import { MediaplanBudgetOverview } from "@/components/mediaplan/MediaplanBudgetOverview";
+import { MediaplanPageHeader } from "@/components/mediaplan/MediaplanPageHeader";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -627,27 +628,7 @@ export default function MediaplanKundenansichtPage() {
 
   return (
     <>
-      <div className="mb-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-semibold text-zinc-950 dark:text-zinc-100">
-            Kundenansicht – {plan.campaign ?? "Mediaplan"}
-          </h1>
-          {plan.status && (
-            <span
-              className={
-                plan.status === "Aktiv"
-                  ? "rounded-full border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/40 px-3 py-1.5 text-sm font-medium text-green-800 dark:text-green-200"
-                  : "rounded-full border border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/80 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300"
-              }
-            >
-              {plan.status}
-            </span>
-          )}
-        </div>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          {plan.kunde_name ?? plan.client ?? "—"} | {formatDateRange(plan.date_range_start, plan.date_range_end)}
-        </p>
-      </div>
+      <MediaplanPageHeader plan={plan} titlePrefix="Kundenansicht – " />
 
       <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
         <MediaplanPDFButton
