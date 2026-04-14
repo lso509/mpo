@@ -74,7 +74,8 @@ async function loadMmData(produktId: string) {
       columns: r.columns != null ? Number(r.columns) : null,
       priceNa: r.price_na != null ? Number(r.price_na) : null,
       priceGa: r.price_ga != null ? Number(r.price_ga) : null,
-      formatType: r.format_type === "textanschluss" ? "textanschluss" : "annonce",
+      formatType:
+        r.format_type === "textanschluss" ? ("textanschluss" as const) : ("annonce" as const),
       sortOrder: Number(r.sort_order ?? 0),
     })),
   };
