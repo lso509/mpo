@@ -1,8 +1,15 @@
 "use client";
 
 import type { MediaplanRow, PositionRow } from "@/lib/mediaplan/types";
-import { getTimelineRange, getISOWeek, getMonday, formatDateRange } from "@/lib/mediaplan/utils";
-import { useMemo } from "react";
+import {
+  addCalendarMonths,
+  getTimelineRange,
+  getISOWeek,
+  getMonday,
+  formatDateRange,
+  parseCalendarDateLocal,
+} from "@/lib/mediaplan/utils";
+import { Fragment, useMemo } from "react";
 
 type Props = {
   plan: MediaplanRow;
@@ -15,16 +22,25 @@ export function GanttChart({ plan, positions, interactive = false }: Props) {
     () => getTimelineRange(plan.date_range_start, plan.date_range_end, positions),
     [plan.date_range_start, plan.date_range_end, positions]
   );
-  const totalMs = max.getTime() - min.getTime();
+  const totalMs = Math.max(max.getTime() - min.getTime(), 24 * 60 * 60 * 1000);
+  /** Eine Viewport-Breite entspricht höchstens 6 Monaten; längere Pläne horizontal scrollbar. */
+  const sixMonthMs = useMemo(
+    () => addCalendarMonths(min, 6).getTime() - min.getTime(),
+    [min]
+  );
+  const viewportSpanMs = Math.min(totalMs, Math.max(sixMonthMs, 24 * 60 * 60 * 1000));
+  const chartWidthFactor = viewportSpanMs > 0 ? totalMs / viewportSpanMs : 1;
   const fmtDate = (d: Date) =>
     d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   const bars = useMemo(() => {
     return positions.map((pos, index) => {
-      const start = pos.start_date ? new Date(pos.start_date).getTime() : min.getTime();
+      const startParsed = parseCalendarDateLocal(pos.start_date);
+      const start = startParsed ? startParsed.getTime() : min.getTime();
       const defaultEnd = start + 24 * 60 * 60 * 1000 * 14;
-      const end = pos.end_date
-        ? new Date(pos.end_date).getTime()
+      const endParsed = parseCalendarDateLocal(pos.end_date);
+      const end = endParsed
+        ? endParsed.getTime()
         : pos.start_date
           ? start + 24 * 60 * 60 * 1000 * 14
           : defaultEnd;
@@ -121,27 +137,23 @@ export function GanttChart({ plan, positions, interactive = false }: Props) {
     );
   }
 
+  const stickyLabelCell =
+    "sticky left-0 z-20 border-r border-zinc-200 bg-white pr-3 dark:border-zinc-600 dark:bg-zinc-800/80";
+
   return (
-    <div className="content-radius border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-4 sm:p-5 overflow-x-auto">
-      <div className="min-w-[600px]">
-        <div className="flex gap-3">
-          <div className="w-40 shrink-0 flex flex-col">
-            <div className="mb-1 h-4" aria-hidden />
-            <div className="mb-2 h-6" aria-hidden />
-            <div className="flex flex-col gap-3">
-              {bars.map((bar) => (
-                <div
-                  key={bar.id}
-                  className="h-8 flex items-center truncate text-sm font-medium text-zinc-800 dark:text-zinc-200"
-                  title={bar.title}
-                >
-                  {bar.title}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="relative flex-1 min-w-0 flex flex-col">
-            <div className="absolute inset-0 pointer-events-none z-10" aria-hidden>
+    <div className="content-radius border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-4 sm:p-5">
+      <div className="overflow-x-auto overscroll-x-contain">
+        <div
+          className="grid w-full min-w-full grid-cols-[minmax(11rem,18rem)_minmax(600px,1fr)] gap-x-3 gap-y-0"
+          style={
+            chartWidthFactor > 1
+              ? { width: `${chartWidthFactor * 100}%`, minWidth: "100%" }
+              : { minWidth: "100%" }
+          }
+        >
+          <div className={`${stickyLabelCell} h-4 shrink-0 pb-3`} aria-hidden />
+          <div className="relative h-4 pb-3">
+            <div className="absolute inset-0 z-0 pointer-events-none" aria-hidden>
               {monthBoundaries.map((leftPct, i) => (
                 <div
                   key={`month-${i}`}
@@ -150,44 +162,61 @@ export function GanttChart({ plan, positions, interactive = false }: Props) {
                 />
               ))}
             </div>
-            <div className="relative z-0 mb-1 h-4">
-              {monthLabels.map((m, i) => (
-                <span
-                  key={i}
-                  className="absolute text-xs font-normal text-zinc-400 dark:text-zinc-500"
-                  style={{ left: `${m.center}%`, transform: "translateX(-50%)" }}
-                >
-                  {m.label}
-                </span>
-              ))}
-            </div>
-            <div className="relative z-0 mb-2 h-6">
-              {weekLabels.map((w, i) => (
-                <span
-                  key={i}
-                  className="absolute text-xs text-zinc-500 dark:text-zinc-400"
-                  style={{ left: `${w.center}%`, transform: "translateX(-50%)" }}
-                >
-                  {w.label}
-                </span>
-              ))}
-            </div>
-            <div className="relative z-0 space-y-3">
-              {bars.map((bar) => (
-                <div
-                  key={bar.id}
-                  className="relative h-8 rounded bg-zinc-100 dark:bg-zinc-700/50 overflow-hidden"
-                >
+            {monthLabels.map((m, i) => (
+              <span
+                key={i}
+                className="absolute z-[11] text-xs font-normal text-zinc-400 dark:text-zinc-500"
+                style={{ left: `${m.center}%`, transform: "translateX(-50%)" }}
+              >
+                {m.label}
+              </span>
+            ))}
+          </div>
+
+          <div className={`${stickyLabelCell} h-6 shrink-0 pb-3`} aria-hidden />
+          <div className="relative h-6 pb-3">
+            {weekLabels.map((w, i) => (
+              <span
+                key={i}
+                className="absolute z-[11] text-xs text-zinc-500 dark:text-zinc-400"
+                style={{ left: `${w.center}%`, transform: "translateX(-50%)" }}
+              >
+                {w.label}
+              </span>
+            ))}
+          </div>
+
+          {bars.map((bar, rowIndex) => (
+            <Fragment key={bar.id}>
+              <div
+                className={`${stickyLabelCell} flex min-h-0 min-w-0 self-stretch flex-col justify-start py-0.5 text-sm font-medium leading-snug break-words text-zinc-800 hyphens-auto dark:text-zinc-200 ${rowIndex < bars.length - 1 ? "pb-3" : ""}`}
+                lang="de"
+              >
+                {bar.title}
+              </div>
+              <div
+                className={`flex min-h-8 items-center self-stretch ${rowIndex < bars.length - 1 ? "pb-3" : ""}`}
+              >
+                <div className="relative h-8 w-full overflow-hidden rounded bg-zinc-100 dark:bg-zinc-700/50">
+                  <div className="absolute inset-0 z-0 pointer-events-none" aria-hidden>
+                    {monthBoundaries.map((leftPct, i) => (
+                      <div
+                        key={`mb-${bar.id}-${i}`}
+                        className="absolute top-0 bottom-0 w-px bg-zinc-300 dark:bg-zinc-500"
+                        style={{ left: `${leftPct}%` }}
+                      />
+                    ))}
+                  </div>
                   {weekBoundaries.map((leftPct, i) => (
                     <div
                       key={`week-${i}`}
-                      className="absolute top-0 bottom-0 w-[2px] bg-white dark:bg-zinc-400 pointer-events-none"
+                      className="pointer-events-none absolute top-0 bottom-0 z-[1] w-[2px] bg-white dark:bg-zinc-400"
                       style={{ left: `${leftPct}%` }}
                       aria-hidden
                     />
                   ))}
                   <div
-                    className={`absolute top-1 bottom-1 rounded ${interactive ? "cursor-pointer" : ""}`}
+                    className={`absolute top-1 bottom-1 z-[2] rounded ${interactive ? "cursor-pointer" : ""}`}
                     style={{
                       left: `${bar.left}%`,
                       width: `${bar.width}%`,
@@ -198,22 +227,25 @@ export function GanttChart({ plan, positions, interactive = false }: Props) {
                   />
                   {bar.hasCreativeDeadline && bar.creativeDeadlineDate && (
                     <div
-                      className="absolute top-0 bottom-0 w-0.5 bg-amber-500"
+                      className="absolute top-0 bottom-0 z-[2] w-0.5 bg-amber-500"
                       style={{
-                        left: `${((new Date(bar.creativeDeadlineDate).getTime() - min.getTime()) / totalMs) * 100}%`,
+                        left: `${(((parseCalendarDateLocal(bar.creativeDeadlineDate)?.getTime() ?? min.getTime()) - min.getTime()) / totalMs) * 100}%`,
                       }}
                       title={`Creative Deadline: ${formatDateRange(bar.creativeDeadlineDate, null)}`}
                     />
                   )}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            </Fragment>
+          ))}
         </div>
-        <p className="mt-2 text-right text-xs text-zinc-500 dark:text-zinc-400">
-          Laufzeit der Positionen; vertikale Linie = Creative Deadline (falls gesetzt).
-        </p>
       </div>
+      <p className="mt-2 text-right text-xs text-zinc-500 dark:text-zinc-400">
+        Laufzeit der Positionen; vertikale Linie = Creative Deadline (falls gesetzt).
+        {chartWidthFactor > 1
+          ? " Bei Laufzeiten über sechs Monaten die Ansicht horizontal scrollen."
+          : ""}
+      </p>
     </div>
   );
 }
