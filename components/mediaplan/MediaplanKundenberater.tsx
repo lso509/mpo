@@ -1,4 +1,4 @@
-import type { MediaplanRow } from "@/lib/mediaplan/types";
+import type { MediaplanDetailFormState, MediaplanRow } from "@/lib/mediaplan/types";
 import { beraterInitials } from "@/lib/mediaplan/utils";
 
 type AgencyUser = {
@@ -16,7 +16,7 @@ type Props = {
   onSave?: () => void;
   onCancel?: () => void;
   saving?: boolean;
-  form?: Partial<MediaplanRow>;
+  form?: MediaplanDetailFormState;
   onFormChange?: (field: string, value: string) => void;
   agencyUsers?: AgencyUser[];
 };

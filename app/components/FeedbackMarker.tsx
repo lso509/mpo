@@ -27,6 +27,7 @@ export type FeedbackEintragMarker = {
   deadline: string | null;
   created_at: string;
   user_name: string | null;
+  archived: boolean;
 };
 
 type Props = {
@@ -62,8 +63,9 @@ export function FeedbackMarker({ target, variant = "inline", className = "" }: P
     const supabase = createClient();
     const { data, error } = await supabase
       .from("feedback_eintraege")
-      .select("id, kategorie, beschreibung, status, prioritaet, deadline, created_at, user_name")
+      .select("id, kategorie, beschreibung, status, prioritaet, deadline, created_at, user_name, archived")
       .eq("target", target)
+      .eq("archived", false)
       .order("created_at", { ascending: false });
     if (error) {
       console.error("Feedback laden fehlgeschlagen:", error);

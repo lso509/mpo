@@ -480,6 +480,8 @@ export default function MediaplanKundenansichtPage() {
               ausstehendSumme={ausstehendSumme}
               gesamtEinmalig={gesamtEinmalig}
               totalRabatt={totalRabatt}
+              summeAllePositionen={totalKundenpreis}
+              maxBudgetChf={plan?.max_budget_chf ?? null}
             />
             <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-4">
               <h3 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Budget nach Ziel</h3>

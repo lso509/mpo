@@ -89,7 +89,50 @@ export const USE_CASE_OPTIONS = ["Event", "Employer Branding", "Recruiting"] as 
 export type UseCaseOption = (typeof USE_CASE_OPTIONS)[number];
 
 export const ZIEL_EIGNUNG_OPTIONS = ["Sichtbarkeit", "Traffic", "Conversion", "Sonstige"];
-export const LAUFZEIT_OPTIONS = ["1 Woche", "2 Wochen", "1 Monat", "3 Monate", "6 Monate", "1 Jahr"];
+export const LAUFZEIT_OPTIONS = ["1 Woche", "2 Wochen", "1 Monat", "3 Monate", "6 Monate", "1 Jahr", "Pro Erscheinung"];
+
+export type ProductMmTariff = {
+  id?: string;
+  category: string;
+  pricePerMmNa: number | null;
+  pricePerMmGa: number | null;
+  columnWidths: number[];
+  sortOrder: number;
+};
+
+export const MM_TARIFF_CATEGORY_OPTIONS = [
+  "Annoncen",
+  "Textanschliessend (6 Spalten)",
+  "Immobilien",
+  "Stellenangebote",
+  "Reklame",
+  "Reklame 1. Seite (54 x 50-100 mm links/rechts)",
+  "Seite 2 (291 x 80 mm)",
+  "Reklame 3. Seite (1/6 Sp, 50-140 mm)",
+] as const;
+
+export const DEFAULT_MM_TARIFFS: ProductMmTariff[] = [
+  { category: "Annoncen", pricePerMmNa: 1.19, pricePerMmGa: 1.83, columnWidths: [27, 56, 86, 115, 144, 174, 203, 232, 291], sortOrder: 0 },
+  { category: "Textanschliessend (6 Spalten)", pricePerMmNa: 2.87, pricePerMmGa: 4.13, columnWidths: [174], sortOrder: 1 },
+  { category: "Immobilien", pricePerMmNa: 1.19, pricePerMmGa: 1.83, columnWidths: [27, 56, 86, 115, 144, 174, 203, 232, 291], sortOrder: 2 },
+  { category: "Stellenangebote", pricePerMmNa: 1.31, pricePerMmGa: 2.08, columnWidths: [27, 56, 86, 115, 144, 174, 203, 232, 291], sortOrder: 3 },
+  { category: "Reklame", pricePerMmNa: 3.59, pricePerMmGa: 5.53, columnWidths: [27, 56, 86, 115, 144, 174, 203, 232, 291], sortOrder: 4 },
+  { category: "Reklame 1. Seite (54 x 50-100 mm links/rechts)", pricePerMmNa: 6.06, pricePerMmGa: 9.02, columnWidths: [54], sortOrder: 5 },
+  { category: "Seite 2 (291 x 80 mm)", pricePerMmNa: 1070.0, pricePerMmGa: 1520.0, columnWidths: [291], sortOrder: 6 },
+  { category: "Reklame 3. Seite (1/6 Sp, 50-140 mm)", pricePerMmNa: 4.48, pricePerMmGa: 6.46, columnWidths: [50], sortOrder: 7 },
+];
+
+export type ProductFixedFormat = {
+  id?: string;
+  formatName: string;
+  widthMm: number | null;
+  heightMm: number | null;
+  columns: number | null;
+  priceNa: number | null;
+  priceGa: number | null;
+  formatType: "annonce" | "textanschluss" | null;
+  sortOrder: number;
+};
 
 export type Product = {
   id: string;
@@ -121,6 +164,11 @@ export type Product = {
   creativeTyp: string | null;
   creativeDeadlineTage: number | null;
   creativeDeadlineDate: string | null;
+  pricingType: "fixed" | "per_mm";
+  editionType: "na" | "ga";
+  minCharge: number | null;
+  mmTariffs: ProductMmTariff[];
+  fixedFormats: ProductFixedFormat[];
   laufzeitProEinheit: string | null;
   preisBruttoChf: number | null;
   preisNettoChf: number | null;
@@ -158,6 +206,7 @@ export type ProduktTaskConfig = {
 const TASK_AUTOMATION_DEFAULTS: Record<string, { tage: number; richtung: Richtung; referenz: Referenz }> = {
   "Rechnung erstellen": { tage: 1, richtung: "nach", referenz: "Enddatum" },
   "Creative Briefing erstellen": { tage: 14, richtung: "vor", referenz: "Startdatum" },
+  "Plakatdruck in Auftrag geben": { tage: 10, richtung: "vor", referenz: "Startdatum" },
   "Creative Deadline": { tage: 0, richtung: "am gleichen Tag", referenz: "Creative Deadline" },
   "Kundenfreigabe einholen": { tage: 5, richtung: "vor", referenz: "Startdatum" },
   "Kampagnen-Ende prüfen": { tage: 0, richtung: "am gleichen Tag", referenz: "Enddatum" },
@@ -170,6 +219,29 @@ const TASK_AUTOMATION_DEFAULTS: Record<string, { tage: number; richtung: Richtun
 
 export function getDefaultTaskConfig(title: string): { tage: number; richtung: Richtung; referenz: Referenz } {
   return TASK_AUTOMATION_DEFAULTS[title] ?? { tage: 0, richtung: "vor", referenz: "Enddatum" };
+}
+
+/** Reihenfolge KREATIV in der Produkt-Automatisierung (unter „Creative Briefing“, vor „Creative Deadline“). */
+const KREATIV_TASK_ORDER = [
+  "Creative Briefing erstellen",
+  "Plakatdruck in Auftrag geben",
+  "Creative Deadline",
+] as const;
+
+export function sortTaskVorlagen(vorlagen: TaskVorlage[]): TaskVorlage[] {
+  return [...vorlagen].sort((a, b) => {
+    const c = a.category.localeCompare(b.category);
+    if (c !== 0) return c;
+    if (a.category === "KREATIV" && b.category === "KREATIV") {
+      const ia = (KREATIV_TASK_ORDER as readonly string[]).indexOf(a.title);
+      const ib = (KREATIV_TASK_ORDER as readonly string[]).indexOf(b.title);
+      if (ia === -1 && ib === -1) return a.title.localeCompare(b.title);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    }
+    return a.title.localeCompare(b.title);
+  });
 }
 
 export function mapRow(row: Record<string, unknown>): Product {
@@ -205,6 +277,11 @@ export function mapRow(row: Record<string, unknown>): Product {
     creativeTyp: row.creative_typ != null ? String(row.creative_typ) : null,
     creativeDeadlineTage: row.creative_deadline_tage != null ? Number(row.creative_deadline_tage) : null,
     creativeDeadlineDate: row.creative_deadline_date != null ? String(row.creative_deadline_date) : null,
+    pricingType: row.pricing_type === "per_mm" ? "per_mm" : "fixed",
+    editionType: row.edition_type === "ga" ? "ga" : "na",
+    minCharge: row.min_charge != null ? Number(row.min_charge) : null,
+    mmTariffs: [],
+    fixedFormats: [],
     laufzeitProEinheit: row.laufzeit_pro_einheit != null ? String(row.laufzeit_pro_einheit) : (row.duration != null ? String(row.duration) : null),
     preisBruttoChf: row.preis_brutto_chf != null ? Number(row.preis_brutto_chf) : null,
     preisNettoChf: row.preis_netto_chf != null ? Number(row.preis_netto_chf) : (row.net_price != null ? Number(row.net_price) : null),
@@ -243,6 +320,9 @@ export function productToRow(p: Partial<Product>): Record<string, unknown> {
     creative_typ: p.creativeTyp ?? null,
     creative_deadline_tage: p.creativeDeadlineTage ?? null,
     creative_deadline_date: p.creativeDeadlineDate ?? null,
+    pricing_type: p.pricingType ?? "fixed",
+    edition_type: p.editionType ?? "na",
+    min_charge: p.minCharge ?? null,
     laufzeit_pro_einheit: p.laufzeitProEinheit ?? null,
     preis_brutto_chf: p.preisBruttoChf ?? null,
     preis_netto_chf: p.preisNettoChf ?? null,
@@ -277,13 +357,16 @@ const CHANGELOG_FIELDS: Record<string, string> = {
   mindestbudget: "Mindestbudget",
   creative_deadline_date: "Creative Deadline (Datum)",
   creative_deadline_tage: "Creative Deadline (Tage)",
+  pricing_type: "Produkttyp",
+  edition_type: "Auflagentyp",
+  min_charge: "Mindestverrechnung",
   zusatzinformationen: "Zusatzinformationen",
   buchungsvoraussetzung: "Buchungsvoraussetzung",
   empfohlenes_medienbudget: "Empfohlenes Medienbudget",
 };
 
 const NUMERIC_CHANGELOG_KEYS = new Set([
-  "preis_brutto_chf", "preis_netto_chf", "preis_agenturservice", "mindestbudget", "creative_deadline_tage",
+  "preis_brutto_chf", "preis_netto_chf", "preis_agenturservice", "mindestbudget", "creative_deadline_tage", "min_charge",
 ]);
 
 function normalizeForCompare(key: string, val: unknown): string {
@@ -335,6 +418,11 @@ export const emptyProduct: Partial<Product> = {
   creativeTyp: null,
   creativeDeadlineTage: null,
   creativeDeadlineDate: null,
+  pricingType: "fixed",
+  editionType: "na",
+  minCharge: null,
+  mmTariffs: DEFAULT_MM_TARIFFS.map((row) => ({ ...row, columnWidths: [...row.columnWidths] })),
+  fixedFormats: [],
   laufzeitProEinheit: LAUFZEIT_OPTIONS[0],
   preisBruttoChf: null,
   preisNettoChf: null,

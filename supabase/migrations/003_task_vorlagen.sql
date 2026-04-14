@@ -11,6 +11,7 @@ create table if not exists public.task_vorlagen (
 );
 
 alter table public.task_vorlagen enable row level security;
+drop policy if exists "Task-Vorlagen lesbar für alle" on public.task_vorlagen;
 create policy "Task-Vorlagen lesbar für alle" on public.task_vorlagen for select using (true);
 
 -- Verknüpfung: welches Produkt hat welche Task-Vorlagen
@@ -21,6 +22,9 @@ create table if not exists public.produkt_task_vorlagen (
 );
 
 alter table public.produkt_task_vorlagen enable row level security;
+drop policy if exists "Produkt-Task-Vorlagen lesbar" on public.produkt_task_vorlagen;
+drop policy if exists "Produkt-Task-Vorlagen einfügen" on public.produkt_task_vorlagen;
+drop policy if exists "Produkt-Task-Vorlagen löschen" on public.produkt_task_vorlagen;
 create policy "Produkt-Task-Vorlagen lesbar" on public.produkt_task_vorlagen for select using (true);
 create policy "Produkt-Task-Vorlagen einfügen" on public.produkt_task_vorlagen for insert with check (true);
 create policy "Produkt-Task-Vorlagen löschen" on public.produkt_task_vorlagen for delete using (true);
@@ -28,6 +32,7 @@ create policy "Produkt-Task-Vorlagen löschen" on public.produkt_task_vorlagen f
 -- Seed: Task-Vorlagen aus "Automatische Tasks für dieses Produkt"
 insert into public.task_vorlagen (category, title, description) values
   ('KREATIV', 'Creative Briefing erstellen', 'Briefing-Dokument für Kreativabteilung vorbereiten'),
+  ('KREATIV', 'Plakatdruck in Auftrag geben', 'Plakatdruck beim Druckdienstleister oder intern beauftragen'),
   ('KREATIV', 'Creative Deadline', 'Finale Kreativ-Materialien müssen vorliegen'),
   ('REPORTING', 'Zwischenbericht erstellen', 'Performance-Bericht zur Kampagnen-Mitte'),
   ('REPORTING', 'Final Report erstellen', 'Abschlussbericht mit allen KPIs'),

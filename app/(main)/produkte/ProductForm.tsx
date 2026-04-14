@@ -4,10 +4,12 @@ import {
   CATEGORIES,
   categoryLabel,
   DEFAULT_FUZZY_THRESHOLD,
+  DEFAULT_MM_TARIFFS,
   FUZZY_MATCH_THRESHOLDS,
   getDefaultTaskConfig,
   KANAL_OPTIONS,
   LAUFZEIT_OPTIONS,
+  MM_TARIFF_CATEGORY_OPTIONS,
   PRODUKTGRUPPE_OPTIONS,
   USE_CASE_OPTIONS,
   VERLAG_OPTIONS,
@@ -24,6 +26,7 @@ import {
 import { ProduktBildUpload } from "@/app/components/produkte/ProduktBildUpload";
 import { ProduktDateienUpload } from "@/app/components/produkte/ProduktDateienUpload";
 import { FeedbackMarker } from "@/app/components/FeedbackMarker";
+import { useEffect, useState } from "react";
 
 type AenderungshistorieEntry = {
   id: string;
@@ -66,7 +69,99 @@ export function ProductForm({
   setFuzzyMatchThreshold,
   verlagOptions: verlagOptionsProp,
 }: ProductFormProps) {
+  const PRODUKTGRUPPE_STORAGE_KEY = "produkte.produktgruppe.options.v1";
   const verlagOptionsList = (verlagOptionsProp?.length ? verlagOptionsProp : VERLAG_OPTIONS) as string[];
+  const [produktgruppeOptions, setProduktgruppeOptions] = useState<string[]>(() => {
+    if (typeof window === "undefined") return PRODUKTGRUPPE_OPTIONS;
+    try {
+      const raw = window.localStorage.getItem(PRODUKTGRUPPE_STORAGE_KEY);
+      if (!raw) return PRODUKTGRUPPE_OPTIONS;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return PRODUKTGRUPPE_OPTIONS;
+      const cleaned = Array.from(
+        new Set(
+          parsed
+            .map((x) => (typeof x === "string" ? x.trim() : ""))
+            .filter(Boolean)
+        )
+      );
+      return cleaned.length > 0 ? cleaned : PRODUKTGRUPPE_OPTIONS;
+    } catch {
+      return PRODUKTGRUPPE_OPTIONS;
+    }
+  });
+  const [showProduktgruppeModal, setShowProduktgruppeModal] = useState(false);
+  const [newProduktgruppe, setNewProduktgruppe] = useState("");
+  const selectedZielEignung = (product.zielEignung ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const isPerMm = product.pricingType === "per_mm";
+  const mmTariffs = product.mmTariffs ?? [];
+  const fixedFormats = product.fixedFormats ?? [];
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(PRODUKTGRUPPE_STORAGE_KEY, JSON.stringify(produktgruppeOptions));
+  }, [produktgruppeOptions]);
+
+  const addMmTariff = () => {
+    setField("mmTariffs", [
+      ...mmTariffs,
+      {
+        category: MM_TARIFF_CATEGORY_OPTIONS[0],
+        pricePerMmNa: null,
+        pricePerMmGa: null,
+        columnWidths: [],
+        sortOrder: mmTariffs.length,
+      },
+    ]);
+  };
+  const removeMmTariff = (idx: number) => {
+    setField(
+      "mmTariffs",
+      mmTariffs
+        .filter((_, i) => i !== idx)
+        .map((row, i) => ({ ...row, sortOrder: i }))
+    );
+  };
+  const updateMmTariff = (idx: number, patch: Partial<(typeof mmTariffs)[number]>) => {
+    setField(
+      "mmTariffs",
+      mmTariffs.map((row, i) => (i === idx ? { ...row, ...patch } : row))
+    );
+  };
+
+  const addFixedFormat = () => {
+    setField("fixedFormats", [
+      ...fixedFormats,
+      {
+        formatName: "",
+        widthMm: null,
+        heightMm: null,
+        columns: null,
+        priceNa: null,
+        priceGa: null,
+        formatType: "annonce",
+        sortOrder: fixedFormats.length,
+      },
+    ]);
+  };
+  const removeFixedFormat = (idx: number) => {
+    setField(
+      "fixedFormats",
+      fixedFormats
+        .filter((_, i) => i !== idx)
+        .map((row, i) => ({ ...row, sortOrder: i }))
+    );
+  };
+  const updateFixedFormat = (idx: number, patch: Partial<(typeof fixedFormats)[number]>) => {
+    setField(
+      "fixedFormats",
+      fixedFormats.map((row, i) => (i === idx ? { ...row, ...patch } : row))
+    );
+  };
+
   return (
     <form
       className="flex flex-1 flex-col"
@@ -91,6 +186,26 @@ export function ProductForm({
                 className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
               />
               <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">z.B. Liewo 1/4 Seite, Liewo 1/2 Seite</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Produkttyp</label>
+              <select
+                value={product.pricingType ?? "fixed"}
+                onChange={(e) => {
+                  const nextPricing = e.target.value as "fixed" | "per_mm";
+                  setField("pricingType", nextPricing);
+                  if (nextPricing === "per_mm" && (product.mmTariffs?.length ?? 0) === 0) {
+                    setField(
+                      "mmTariffs",
+                      DEFAULT_MM_TARIFFS.map((row) => ({ ...row, columnWidths: [...row.columnWidths] }))
+                    );
+                  }
+                }}
+                className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+              >
+                <option value="fixed">Standardformat</option>
+                <option value="per_mm">Individualformat</option>
+              </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Kategorie</label>
@@ -135,17 +250,39 @@ export function ProductForm({
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Produktgruppe</label>
-              <select
+              <div className="mt-1 flex items-center gap-2">
+                <select
                 value={product.produktgruppe ?? ""}
-                onChange={(e) => setField("produktgruppe", e.target.value || null)}
-                className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
-              >
-                <option value="">—</option>
-                {PRODUKTGRUPPE_OPTIONS.map((pg) => (
-                  <option key={pg} value={pg}>{pg}</option>
-                ))}
-              </select>
+                  onChange={(e) => setField("produktgruppe", e.target.value || null)}
+                  className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+                >
+                  <option value="">—</option>
+                  {produktgruppeOptions.map((pg) => (
+                    <option key={pg} value={pg}>{pg}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowProduktgruppeModal(true)}
+                  className="shrink-0 rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-200"
+                >
+                  Bearbeiten
+                </button>
+              </div>
             </div>
+            {isPerMm && (
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Auflagentyp</label>
+                <select
+                  value={product.editionType ?? "na"}
+                  onChange={(e) => setField("editionType", e.target.value as "na" | "ga")}
+                  className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+                >
+                  <option value="na">Normalauflage (NA)</option>
+                  <option value="ga">Grossauflage (GA)</option>
+                </select>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Use Case</p>
               <ul className="mt-1 space-y-1.5">
@@ -234,17 +371,34 @@ export function ProductForm({
               <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">z.B. Above the Fold – Homepage</p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Ziel-Eignung</label>
-              <select
-                value={product.zielEignung ?? ""}
-                onChange={(e) => setField("zielEignung", e.target.value)}
-                className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
-              >
-                <option value="">—</option>
-                {ZIEL_EIGNUNG_OPTIONS.map((z) => (
-                  <option key={z} value={z}>{z}</option>
-                ))}
-              </select>
+              <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Ziel-Eignung</p>
+              <ul className="mt-1 space-y-1.5">
+                {ZIEL_EIGNUNG_OPTIONS.map((opt) => {
+                  const selected = selectedZielEignung.includes(opt);
+                  return (
+                    <li key={opt} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`ziel-eignung-${opt.replace(/\s+/g, "-")}`}
+                        checked={selected}
+                        onChange={() => {
+                          const next = selected
+                            ? selectedZielEignung.filter((x) => x !== opt)
+                            : [...selectedZielEignung, opt];
+                          setField("zielEignung", next.length > 0 ? next.join(", ") : null);
+                        }}
+                        className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#3f3f46_40%)]"
+                      />
+                      <label
+                        htmlFor={`ziel-eignung-${opt.replace(/\s+/g, "-")}`}
+                        className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300"
+                      >
+                        {opt}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Zusatzinformationen</label>
@@ -305,25 +459,6 @@ export function ProductForm({
                 className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Creative Deadline</label>
-              <div className="mt-1 flex rounded-full border border-zinc-200 dark:border-zinc-600 overflow-hidden">
-                <span className="flex items-center rounded-l-full bg-zinc-100 dark:bg-zinc-700 pl-3 pr-2 text-zinc-500" aria-hidden>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-                    <line x1="16" x2="16" y1="2" y2="6" />
-                    <line x1="8" x2="8" y1="2" y2="6" />
-                    <line x1="3" x2="21" y1="10" y2="10" />
-                  </svg>
-                </span>
-                <input
-                  type="date"
-                  value={product.creativeDeadlineDate ?? ""}
-                  onChange={(e) => setField("creativeDeadlineDate", e.target.value || null)}
-                  className="min-w-0 flex-1 border-0 bg-white dark:bg-zinc-800 py-2 pr-3 pl-2 text-sm focus:ring-2 focus:ring-[#FF6554]"
-                />
-              </div>
-            </div>
           </div>
         </section>
 
@@ -356,57 +491,67 @@ export function ProductForm({
                 ))}
               </select>
             </div>
+            {!isPerMm && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Preis Brutto</label>
+                  <div className="mt-1 flex rounded-full border border-zinc-200 dark:border-zinc-600 overflow-hidden">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={product.preisBruttoChf ?? ""}
+                      onChange={(e) => setField("preisBruttoChf", e.target.value === "" ? null : parseFloat(e.target.value))}
+                      className="min-w-0 flex-1 rounded-l-full border-0 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:ring-2 focus:ring-[#FF6554]"
+                    />
+                    <span className="flex items-center rounded-r-full bg-zinc-100 dark:bg-zinc-700 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">{product.waehrung ?? "CHF"}</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Preis Netto</label>
+                  <div className="mt-1 flex rounded-full border border-zinc-200 dark:border-zinc-600 overflow-hidden">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={product.preisNettoChf ?? ""}
+                      onChange={(e) => setField("preisNettoChf", e.target.value === "" ? null : parseFloat(e.target.value))}
+                      className="min-w-0 flex-1 rounded-l-full border-0 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:ring-2 focus:ring-[#FF6554]"
+                    />
+                    <span className="flex items-center rounded-r-full bg-zinc-100 dark:bg-zinc-700 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">{product.waehrung ?? "CHF"}</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Preis Agenturservice</label>
+                  <div className="mt-1 flex rounded-full border border-zinc-200 dark:border-zinc-600 overflow-hidden">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={product.preisAgenturservice ?? ""}
+                      onChange={(e) => setField("preisAgenturservice", e.target.value === "" ? null : parseFloat(e.target.value))}
+                      className="min-w-0 flex-1 rounded-l-full border-0 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:ring-2 focus:ring-[#FF6554]"
+                    />
+                    <span className="flex items-center rounded-r-full bg-zinc-100 dark:bg-zinc-700 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">{product.waehrung ?? "CHF"}</span>
+                  </div>
+                </div>
+              </>
+            )}
             <div>
-              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Preis Brutto</label>
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                {isPerMm ? "Mindestverrechnung" : "Mindestbudget"}
+              </label>
               <div className="mt-1 flex rounded-full border border-zinc-200 dark:border-zinc-600 overflow-hidden">
                 <input
                   type="number"
                   step="0.01"
                   min={0}
-                  value={product.preisBruttoChf ?? ""}
-                  onChange={(e) => setField("preisBruttoChf", e.target.value === "" ? null : parseFloat(e.target.value))}
-                  className="min-w-0 flex-1 rounded-l-full border-0 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:ring-2 focus:ring-[#FF6554]"
-                />
-                <span className="flex items-center rounded-r-full bg-zinc-100 dark:bg-zinc-700 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">{product.waehrung ?? "CHF"}</span>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Preis Netto</label>
-              <div className="mt-1 flex rounded-full border border-zinc-200 dark:border-zinc-600 overflow-hidden">
-                <input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={product.preisNettoChf ?? ""}
-                  onChange={(e) => setField("preisNettoChf", e.target.value === "" ? null : parseFloat(e.target.value))}
-                  className="min-w-0 flex-1 rounded-l-full border-0 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:ring-2 focus:ring-[#FF6554]"
-                />
-                <span className="flex items-center rounded-r-full bg-zinc-100 dark:bg-zinc-700 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">{product.waehrung ?? "CHF"}</span>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Preis Agenturservice</label>
-              <div className="mt-1 flex rounded-full border border-zinc-200 dark:border-zinc-600 overflow-hidden">
-                <input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={product.preisAgenturservice ?? ""}
-                  onChange={(e) => setField("preisAgenturservice", e.target.value === "" ? null : parseFloat(e.target.value))}
-                  className="min-w-0 flex-1 rounded-l-full border-0 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:ring-2 focus:ring-[#FF6554]"
-                />
-                <span className="flex items-center rounded-r-full bg-zinc-100 dark:bg-zinc-700 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">{product.waehrung ?? "CHF"}</span>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Mindestbudget</label>
-              <div className="mt-1 flex rounded-full border border-zinc-200 dark:border-zinc-600 overflow-hidden">
-                <input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={product.mindestbudget ?? ""}
-                  onChange={(e) => setField("mindestbudget", e.target.value === "" ? null : parseFloat(e.target.value))}
+                  value={isPerMm ? (product.minCharge ?? "") : (product.mindestbudget ?? "")}
+                  onChange={(e) =>
+                    isPerMm
+                      ? setField("minCharge", e.target.value === "" ? null : parseFloat(e.target.value))
+                      : setField("mindestbudget", e.target.value === "" ? null : parseFloat(e.target.value))
+                  }
                   className="min-w-0 flex-1 rounded-l-full border-0 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:ring-2 focus:ring-[#FF6554]"
                 />
                 <span className="flex items-center rounded-r-full bg-zinc-100 dark:bg-zinc-700 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">{product.waehrung ?? "CHF"}</span>
@@ -432,6 +577,215 @@ export function ProductForm({
             </div>
           </div>
         </section>
+
+        {isPerMm && (
+          <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Tarifstruktur</h4>
+              <button
+                type="button"
+                onClick={addMmTariff}
+                className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200"
+              >
+                Zeile hinzufügen
+              </button>
+            </div>
+            {mmTariffs.length === 0 ? (
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                Mindestens eine Tarifzeile ist für Individualformate erforderlich.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] border-separate border-spacing-y-2 text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-zinc-500 dark:text-zinc-400">
+                      <th className="px-2">Rubrik/Kategorie</th>
+                      <th className="px-2">mm-Preis NA</th>
+                      <th className="px-2">mm-Preis GA</th>
+                      <th className="px-2">Spaltenraster (mm)</th>
+                      <th className="w-12 px-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mmTariffs.map((row, idx) => (
+                      <tr key={`mm-tariff-${idx}`}>
+                        <td className="px-2 py-1">
+                          <select
+                            value={row.category}
+                            onChange={(e) => updateMmTariff(idx, { category: e.target.value })}
+                            className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5"
+                          >
+                            {MM_TARIFF_CATEGORY_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-2 py-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={row.pricePerMmNa ?? ""}
+                            onChange={(e) => updateMmTariff(idx, { pricePerMmNa: e.target.value === "" ? null : parseFloat(e.target.value) })}
+                            className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5"
+                          />
+                        </td>
+                        <td className="px-2 py-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={row.pricePerMmGa ?? ""}
+                            onChange={(e) => updateMmTariff(idx, { pricePerMmGa: e.target.value === "" ? null : parseFloat(e.target.value) })}
+                            className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5"
+                          />
+                        </td>
+                        <td className="px-2 py-1">
+                          <input
+                            type="text"
+                            value={row.columnWidths.join(", ")}
+                            onChange={(e) =>
+                              updateMmTariff(idx, {
+                                columnWidths: e.target.value
+                                  .split(",")
+                                  .map((part) => Number(part.trim()))
+                                  .filter((n) => !Number.isNaN(n) && n > 0),
+                              })
+                            }
+                            placeholder="z.B. 27, 56, 86"
+                            className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5"
+                          />
+                        </td>
+                        <td className="px-2 py-1 text-right">
+                          <button
+                            type="button"
+                            onClick={() => removeMmTariff(idx)}
+                            className="rounded-full border border-red-200 dark:border-red-800 px-2.5 py-1 text-xs text-red-700 dark:text-red-300"
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {isPerMm && (
+          <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Fixformate (optional)</h4>
+              <button
+                type="button"
+                onClick={addFixedFormat}
+                className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200"
+              >
+                Zeile hinzufügen
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[920px] border-separate border-spacing-y-2 text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-zinc-500 dark:text-zinc-400">
+                    <th className="px-2">Formatname</th>
+                    <th className="px-2">Breite (mm)</th>
+                    <th className="px-2">Höhe (mm)</th>
+                    <th className="px-2">Spalten</th>
+                    <th className="px-2">Preis NA</th>
+                    <th className="px-2">Preis GA</th>
+                    <th className="px-2">Rubrik-Typ</th>
+                    <th className="w-12 px-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                    {fixedFormats.map((row, idx) => (
+                    <tr key={`fixed-format-${idx}`}>
+                      <td className="px-2 py-1">
+                        <input
+                          type="text"
+                          value={row.formatName}
+                          onChange={(e) => updateFixedFormat(idx, { formatName: e.target.value })}
+                          className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5"
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.widthMm ?? ""}
+                          onChange={(e) => updateFixedFormat(idx, { widthMm: e.target.value === "" ? null : parseInt(e.target.value, 10) })}
+                          className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5"
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.heightMm ?? ""}
+                          onChange={(e) => updateFixedFormat(idx, { heightMm: e.target.value === "" ? null : parseInt(e.target.value, 10) })}
+                          className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5"
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.columns ?? ""}
+                          onChange={(e) => updateFixedFormat(idx, { columns: e.target.value === "" ? null : parseInt(e.target.value, 10) })}
+                          className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5"
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={row.priceNa ?? ""}
+                          onChange={(e) => updateFixedFormat(idx, { priceNa: e.target.value === "" ? null : parseFloat(e.target.value) })}
+                          className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5"
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={row.priceGa ?? ""}
+                          onChange={(e) => updateFixedFormat(idx, { priceGa: e.target.value === "" ? null : parseFloat(e.target.value) })}
+                          className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5"
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <select
+                          value={row.formatType ?? "annonce"}
+                          onChange={(e) => updateFixedFormat(idx, { formatType: e.target.value as "annonce" | "textanschluss" })}
+                          className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5"
+                        >
+                          <option value="annonce">Annonce</option>
+                          <option value="textanschluss">Textanschluss</option>
+                        </select>
+                      </td>
+                      <td className="px-2 py-1 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeFixedFormat(idx)}
+                          className="rounded-full border border-red-200 dark:border-red-800 px-2.5 py-1 text-xs text-red-700 dark:text-red-300"
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         {/* 4. Automatisierung */}
         <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
@@ -630,6 +984,102 @@ export function ProductForm({
           <FeedbackMarker target="produkte.speichern" />
         </div>
       </div>
+
+      {showProduktgruppeModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowProduktgruppeModal(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h5 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Produktgruppen verwalten</h5>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              Einträge hinzufügen, bearbeiten oder entfernen.
+            </p>
+
+            <div className="mt-4 space-y-2 max-h-72 overflow-y-auto">
+              {produktgruppeOptions.map((option, idx) => (
+                <div key={`${option}-${idx}`} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={option}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setProduktgruppeOptions((prev) =>
+                        prev.map((x, i) => (i === idx ? value : x))
+                      );
+                    }}
+                    className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const toRemove = option;
+                      setProduktgruppeOptions((prev) => prev.filter((_, i) => i !== idx));
+                      if ((product.produktgruppe ?? "") === toRemove) {
+                        setField("produktgruppe", null);
+                      }
+                    }}
+                    className="shrink-0 rounded-full border border-red-200 dark:border-red-800 px-3 py-2 text-xs text-red-700 dark:text-red-300"
+                  >
+                    Entfernen
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 flex items-center gap-2">
+              <input
+                type="text"
+                value={newProduktgruppe}
+                onChange={(e) => setNewProduktgruppe(e.target.value)}
+                placeholder="Neue Produktgruppe"
+                className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const value = newProduktgruppe.trim();
+                  if (!value) return;
+                  if (produktgruppeOptions.some((x) => x.trim().toLowerCase() === value.toLowerCase())) {
+                    return;
+                  }
+                  setProduktgruppeOptions((prev) => [...prev, value]);
+                  setNewProduktgruppe("");
+                }}
+                className="shrink-0 rounded-full bg-[#FF6554] px-3 py-2 text-xs font-medium text-white hover:bg-[#e55a4a]"
+              >
+                Hinzufügen
+              </button>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const cleaned = Array.from(
+                    new Set(
+                      produktgruppeOptions
+                        .map((x) => x.trim())
+                        .filter(Boolean)
+                    )
+                  );
+                  setProduktgruppeOptions(cleaned);
+                  if (product.produktgruppe && !cleaned.includes(product.produktgruppe)) {
+                    setField("produktgruppe", null);
+                  }
+                  setShowProduktgruppeModal(false);
+                }}
+                className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+              >
+                Fertig
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

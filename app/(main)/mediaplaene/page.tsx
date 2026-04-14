@@ -16,6 +16,7 @@ type Mediaplan = {
   campaign: string;
   date_range_start: string | null;
   date_range_end: string | null;
+  max_budget_chf: number | null;
   positionsCount: number;
   totalKundenpreis: number;
 };
@@ -66,7 +67,7 @@ export default function MediaplaenePage() {
     setError(null);
     const { data: plansData, error: plansErr } = await supabase
       .from("mediaplaene")
-      .select("id, client, kunde_id, status, campaign, date_range_start, date_range_end")
+      .select("id, client, kunde_id, status, campaign, date_range_start, date_range_end, max_budget_chf")
       .order("created_at", { ascending: false });
 
     if (plansErr) {
@@ -122,6 +123,7 @@ export default function MediaplaenePage() {
           campaign: row.campaign ?? "",
           date_range_start: row.date_range_start ?? null,
           date_range_end: row.date_range_end ?? null,
+          max_budget_chf: (row as { max_budget_chf?: number | null }).max_budget_chf ?? null,
           positionsCount: byPlan[row.id]?.count ?? 0,
           totalKundenpreis: byPlan[row.id]?.sum ?? 0,
         };
@@ -160,6 +162,7 @@ export default function MediaplaenePage() {
         campaign: plan.campaign ? `Kopie: ${plan.campaign}` : "Kopie",
         date_range_start: plan.date_range_start,
         date_range_end: plan.date_range_end,
+        max_budget_chf: plan.max_budget_chf,
       })
       .select("id")
       .single();

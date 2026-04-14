@@ -15,6 +15,15 @@ export function formatChf(n: number | null): string {
   );
 }
 
+/** Freitext CHF (z. B. Formular) → Zahl oder null wenn leer/ungültig */
+export function parseOptionalChfInput(raw: string): number | null {
+  const t = raw.trim().replace(/'/g, "").replace(/\s/g, "");
+  if (!t) return null;
+  const n = parseFloat(t.replace(",", "."));
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
 export function formatDateRange(start: string | null, end: string | null): string {
   if (!start && !end) return "—";
   const fmt = (s: string) =>

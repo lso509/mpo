@@ -16,7 +16,7 @@ export function useMediaplanData(id: string) {
     const supabase = createClient();
     const { data, error: err } = await supabase
       .from("mediaplaene")
-      .select("id, client, kunde_id, status, campaign, date_range_start, date_range_end, kunde_adresse, kunde_email, kunde_telefon, kunde_ap_name, kunde_ap_position, kunde_ap_email, kunde_ap_telefon, kunde_ap_mobil, berater_name, berater_position, berater_email, berater_telefon, berater_mobil")
+      .select("id, client, kunde_id, status, campaign, date_range_start, date_range_end, max_budget_chf, kunde_adresse, kunde_email, kunde_telefon, kunde_ap_name, kunde_ap_position, kunde_ap_email, kunde_ap_telefon, kunde_ap_mobil, berater_name, berater_position, berater_email, berater_telefon, berater_mobil")
       .eq("id", id)
       .single();
     if (err) {

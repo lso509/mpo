@@ -12,6 +12,7 @@ import {
   type TaskVorlage,
   mapRow,
   productToRow,
+  sortTaskVorlagen,
 } from "@/lib/produkte";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -36,6 +37,85 @@ async function saveProduktTaskVorlagen(produktId: string, tasksToSave: ProduktTa
         referenz: t.referenz,
       }))
     );
+  }
+}
+
+async function loadMmData(produktId: string) {
+  const supabase = createClient();
+  const [{ data: mmTariffs }, { data: fixedFormats }] = await Promise.all([
+    supabase
+      .from("product_mm_tariffs")
+      .select("id, category, price_per_mm_na, price_per_mm_ga, column_widths, sort_order")
+      .eq("product_id", produktId)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("product_fixed_formats")
+      .select("id, format_name, width_mm, height_mm, columns, price_na, price_ga, format_type, sort_order")
+      .eq("product_id", produktId)
+      .order("sort_order", { ascending: true }),
+  ]);
+
+  return {
+    mmTariffs: (mmTariffs ?? []).map((r) => ({
+      id: String(r.id),
+      category: String(r.category ?? ""),
+      pricePerMmNa: r.price_per_mm_na != null ? Number(r.price_per_mm_na) : null,
+      pricePerMmGa: r.price_per_mm_ga != null ? Number(r.price_per_mm_ga) : null,
+      columnWidths: Array.isArray(r.column_widths)
+        ? r.column_widths.map((v) => Number(v)).filter((n) => !Number.isNaN(n))
+        : [],
+      sortOrder: Number(r.sort_order ?? 0),
+    })),
+    fixedFormats: (fixedFormats ?? []).map((r) => ({
+      id: String(r.id),
+      formatName: String(r.format_name ?? ""),
+      widthMm: r.width_mm != null ? Number(r.width_mm) : null,
+      heightMm: r.height_mm != null ? Number(r.height_mm) : null,
+      columns: r.columns != null ? Number(r.columns) : null,
+      priceNa: r.price_na != null ? Number(r.price_na) : null,
+      priceGa: r.price_ga != null ? Number(r.price_ga) : null,
+      formatType: r.format_type === "textanschluss" ? "textanschluss" : "annonce",
+      sortOrder: Number(r.sort_order ?? 0),
+    })),
+  };
+}
+
+async function saveMmData(produktId: string, product: Partial<Product>) {
+  const supabase = createClient();
+  await Promise.all([
+    supabase.from("product_mm_tariffs").delete().eq("product_id", produktId),
+    supabase.from("product_fixed_formats").delete().eq("product_id", produktId),
+  ]);
+
+  if (product.pricingType !== "per_mm") return;
+
+  const mmRows = (product.mmTariffs ?? []).map((row, i) => ({
+    product_id: produktId,
+    category: row.category,
+    price_per_mm_na: row.pricePerMmNa,
+    price_per_mm_ga: row.pricePerMmGa,
+    column_widths: row.columnWidths,
+    sort_order: i,
+  }));
+  const fixedRows = (product.fixedFormats ?? []).map((row, i) => ({
+    product_id: produktId,
+    format_name: row.formatName,
+    width_mm: row.widthMm,
+    height_mm: row.heightMm,
+    columns: row.columns,
+    price_na: row.priceNa,
+    price_ga: row.priceGa,
+    format_type: row.formatType,
+    sort_order: i,
+  }));
+
+  if (mmRows.length > 0) {
+    const { error } = await supabase.from("product_mm_tariffs").insert(mmRows);
+    if (error) throw error;
+  }
+  if (fixedRows.length > 0) {
+    const { error } = await supabase.from("product_fixed_formats").insert(fixedRows);
+    if (error) throw error;
   }
 }
 
@@ -91,15 +171,24 @@ export default function ProduktBearbeitenPage() {
               setProduct({ ...emptyProduct });
             } else {
               const p = mapRow(data as Record<string, unknown>);
-              const { id: _omit, ...rest } = p;
-              setProduct(rest);
+              const rest: Partial<Product> = { ...p };
+              delete (rest as { id?: string }).id;
+              loadMmData(duplicateId)
+                .then(({ mmTariffs, fixedFormats }) => {
+                  setProduct({ ...rest, mmTariffs, fixedFormats });
+                })
+                .catch(() => {
+                  setProduct(rest);
+                });
             }
             setLoading(false);
           });
         return;
       }
-      setProduct({ ...emptyProduct });
-      setLoading(false);
+      queueMicrotask(() => {
+        setProduct({ ...emptyProduct });
+        setLoading(false);
+      });
       return;
     }
     const supabase = createClient();
@@ -108,14 +197,20 @@ export default function ProduktBearbeitenPage() {
       .select("*")
       .eq("id", id)
       .single()
-      .then(({ data, error: err }) => {
+      .then(async ({ data, error: err }) => {
         if (err || !data) {
           setError(err?.message ?? "Produkt nicht gefunden");
           setProduct(null);
           router.replace("/produkte");
           return;
         }
-        setProduct({ ...mapRow(data as Record<string, unknown>) });
+        const base = mapRow(data as Record<string, unknown>);
+        try {
+          const { mmTariffs, fixedFormats } = await loadMmData(id);
+          setProduct({ ...base, mmTariffs, fixedFormats });
+        } catch {
+          setProduct(base);
+        }
         setLoading(false);
       });
   }, [id, duplicateId, router]);
@@ -138,15 +233,17 @@ export default function ProduktBearbeitenPage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.from("task_vorlagen").select("id, category, title, description").order("category").order("title").then(({ data }) => {
-      if (data) setTaskVorlagen(data as TaskVorlage[]);
+      if (data) setTaskVorlagen(sortTaskVorlagen(data as TaskVorlage[]));
     });
   }, []);
 
   // Produkt-Task-Konfiguration und Änderungshistorie (nur bei Bearbeitung)
   useEffect(() => {
     if (isNew || !id) {
-      setSelectedTasks([]);
-      setAenderungshistorie([]);
+      queueMicrotask(() => {
+        setSelectedTasks([]);
+        setAenderungshistorie([]);
+      });
       initialSelectedTasksRef.current = [];
       return;
     }
@@ -177,9 +274,12 @@ export default function ProduktBearbeitenPage() {
       });
   }, [id, isNew]);
 
-  const handleSave = useCallback(
-    async (asNewVariant: boolean, overwrite: boolean, forceCreate?: boolean) => {
+  async function handleSave(asNewVariant: boolean, overwrite: boolean, forceCreate?: boolean) {
       if (!product) return;
+      if (product.pricingType === "per_mm" && (product.mmTariffs?.length ?? 0) === 0) {
+        setError("Individualformat benötigt mindestens eine Tarifzeile.");
+        return;
+      }
       setSaving(true);
       setError(null);
       const supabase = createClient();
@@ -194,7 +294,7 @@ export default function ProduktBearbeitenPage() {
               similar,
               onConfirmCreate: () => {
                 setSimilarDialog(null);
-                handleSave(false, false, true);
+                void handleSave(false, false, true);
               },
             });
             setSaving(false);
@@ -208,7 +308,14 @@ export default function ProduktBearbeitenPage() {
           return;
         }
         if (inserted?.id) {
-          await saveProduktTaskVorlagen(inserted.id, selectedTasks);
+          try {
+            await saveMmData(inserted.id, product);
+            await saveProduktTaskVorlagen(inserted.id, selectedTasks);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Tarifdaten konnten nicht gespeichert werden.");
+            setSaving(false);
+            return;
+          }
           router.push("/produkte");
           return;
         }
@@ -223,7 +330,14 @@ export default function ProduktBearbeitenPage() {
           return;
         }
         if (inserted?.id) {
-          await saveProduktTaskVorlagen(inserted.id, selectedTasks);
+          try {
+            await saveMmData(inserted.id, product);
+            await saveProduktTaskVorlagen(inserted.id, selectedTasks);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Tarifdaten konnten nicht gespeichert werden.");
+            setSaving(false);
+            return;
+          }
           router.push("/produkte");
           return;
         }
@@ -255,13 +369,18 @@ export default function ProduktBearbeitenPage() {
           setSaving(false);
           return;
         }
-        await saveProduktTaskVorlagen(id, selectedTasks);
+        try {
+          await saveMmData(id, product);
+          await saveProduktTaskVorlagen(id, selectedTasks);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Tarifdaten konnten nicht gespeichert werden.");
+          setSaving(false);
+          return;
+        }
         router.push("/produkte");
       }
       setSaving(false);
-    },
-    [product, isNew, id, selectedTasks, existingProducts, fuzzyMatchThreshold, router]
-  );
+  }
 
   const handleCancel = useCallback(() => {
     router.push("/produkte");

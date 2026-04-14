@@ -1,4 +1,5 @@
-import type { MediaplanRow } from "@/lib/mediaplan/types";
+import type { MediaplanDetailFormState, MediaplanRow } from "@/lib/mediaplan/types";
+import { formatChf } from "@/lib/mediaplan/utils";
 
 type Props = {
   plan: MediaplanRow;
@@ -8,7 +9,7 @@ type Props = {
   onSave?: () => void;
   onCancel?: () => void;
   saving?: boolean;
-  form?: Partial<MediaplanRow>;
+  form?: MediaplanDetailFormState;
   onFormChange?: (field: string, value: string) => void;
 };
 
@@ -69,6 +70,12 @@ export function MediaplanKundenInfo({
               <div><dt className="text-zinc-500 dark:text-zinc-400">Unternehmen</dt><dd className="font-medium text-zinc-900 dark:text-zinc-100">{displayName}</dd></div>
               <div><dt className="text-zinc-500 dark:text-zinc-400">Adresse</dt><dd className="whitespace-pre-line font-medium text-zinc-900 dark:text-zinc-100">{displayAddress}</dd></div>
               <div><dt className="text-zinc-500 dark:text-zinc-400">Hauptnummer</dt><dd className="font-medium text-zinc-900 dark:text-zinc-100">{displayPhone}</dd></div>
+              {plan.max_budget_chf != null && (
+                <div>
+                  <dt className="text-zinc-500 dark:text-zinc-400">Maximales Budget</dt>
+                  <dd className="font-medium text-zinc-900 dark:text-zinc-100">{formatChf(plan.max_budget_chf)}</dd>
+                </div>
+              )}
             </dl>
             <dl className="space-y-2 text-sm">
               <div>
@@ -92,6 +99,18 @@ export function MediaplanKundenInfo({
                 <label className="block">
                   <span className="block text-xs text-zinc-500 dark:text-zinc-400">Enddatum</span>
                   <input type="date" value={getForm("date_range_end")} onChange={(e) => onFormChange("date_range_end", e.target.value)} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" />
+                </label>
+                <label className="block">
+                  <span className="block text-xs text-zinc-500 dark:text-zinc-400">Maximales Budget (optional, CHF netto)</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={getForm("max_budget_chf")}
+                    onChange={(e) => onFormChange("max_budget_chf", e.target.value)}
+                    className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+                    placeholder="Leer lassen oder z. B. 50000"
+                    aria-label="Maximales Budget CHF"
+                  />
                 </label>
                 <label className="block">
                   <span className="block text-xs text-zinc-500 dark:text-zinc-400">Unternehmen</span>

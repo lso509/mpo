@@ -27,6 +27,13 @@ export type MediaplanRow = {
   kunde_ap_email: string | null;
   kunde_ap_telefon: string | null;
   kunde_ap_mobil: string | null;
+  /** Optionales Maximalbudget (CHF), z. B. bei Neuanlage */
+  max_budget_chf?: number | null;
+};
+
+/** Formular-State Mediaplan bearbeiten (max. Budget als Freitext) */
+export type MediaplanDetailFormState = Omit<Partial<MediaplanRow>, "max_budget_chf"> & {
+  max_budget_chf?: string;
 };
 
 export type PositionRow = {

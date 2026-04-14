@@ -83,6 +83,7 @@ export type ProduktTaskConfig = {
 const TASK_AUTOMATION_DEFAULTS: Record<string, { tage: number; richtung: Richtung; referenz: Referenz }> = {
   "Rechnung erstellen": { tage: 1, richtung: "nach", referenz: "Enddatum" },
   "Creative Briefing erstellen": { tage: 14, richtung: "vor", referenz: "Startdatum" },
+  "Plakatdruck in Auftrag geben": { tage: 10, richtung: "vor", referenz: "Startdatum" },
   "Creative Deadline": { tage: 0, richtung: "am gleichen Tag", referenz: "Creative Deadline" },
   "Kundenfreigabe einholen": { tage: 5, richtung: "vor", referenz: "Startdatum" },
   "Kampagnen-Ende prüfen": { tage: 0, richtung: "am gleichen Tag", referenz: "Enddatum" },
@@ -372,6 +373,13 @@ function uniqueSorted(arr: (string | null)[]): string[] {
   return Array.from(new Set(arr.filter((x): x is string => x != null && x !== ""))).sort();
 }
 
+function splitMultiValue(value: string | null | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 /** Levenshtein-Distanz (Anzahl Einfügen/Löschen/Ersetzen) */
 function levenshtein(a: string, b: string): number {
   const an = a.length;
@@ -630,8 +638,10 @@ export default function ProduktePage() {
       return false;
     if (filterKanal.length > 0 && (p.kanal == null || !filterKanal.includes(p.kanal)))
       return false;
-    if (filterZielEignung.length > 0 && (p.zielEignung == null || !filterZielEignung.includes(p.zielEignung)))
-      return false;
+    if (filterZielEignung.length > 0) {
+      const values = splitMultiValue(p.zielEignung);
+      if (!values.some((v) => filterZielEignung.includes(v))) return false;
+    }
     if (filterLaufzeit.length > 0 && (p.laufzeitProEinheit == null || !filterLaufzeit.includes(p.laufzeitProEinheit)))
       return false;
     const budgetVal = p.mindestbudget ?? p.preisNettoChf ?? null;
@@ -649,7 +659,9 @@ export default function ProduktePage() {
 
   const uniqueVerlage = uniqueSorted(visibleProducts.map((p) => p.verlag));
   const uniqueKanal = uniqueSorted(visibleProducts.map((p) => p.kanal));
-  const uniqueZielEignung = uniqueSorted(visibleProducts.map((p) => p.zielEignung));
+  const uniqueZielEignung = uniqueSorted(
+    visibleProducts.flatMap((p) => splitMultiValue(p.zielEignung))
+  );
   const uniqueLaufzeit = uniqueSorted(visibleProducts.map((p) => p.laufzeitProEinheit));
 
   const displayName = (p: Product) =>
@@ -707,9 +719,11 @@ export default function ProduktePage() {
           </div>
         )}
 
-        {uniqueKanal.length > 0 && (
-          <div>
-            <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Kanal</p>
+        <div>
+          <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Kanal</p>
+          {uniqueKanal.length === 0 ? (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">Keine Kanäle verfügbar.</p>
+          ) : (
             <ul className="space-y-1.5">
               {uniqueKanal.map((k) => (
                 <li key={k} className="flex items-center gap-2">
@@ -726,8 +740,8 @@ export default function ProduktePage() {
                 </li>
               ))}
             </ul>
-          </div>
-        )}
+          )}
+        </div>
 
         {uniqueZielEignung.length > 0 && (
           <div>

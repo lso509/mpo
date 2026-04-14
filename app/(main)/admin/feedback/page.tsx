@@ -77,6 +77,7 @@ type FeedbackEintrag = {
   status: string;
   prioritaet: string;
   deadline: string | null;
+  archived: boolean;
 };
 
 export default function AdminFeedbackPage() {
@@ -88,8 +89,8 @@ export default function AdminFeedbackPage() {
   const [filterKategorie, setFilterKategorie] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterPrioritaet, setFilterPrioritaet] = useState<string>("");
-  const [filterTarget, setFilterTarget] = useState<string>("");
   const [filterOverdueOnly, setFilterOverdueOnly] = useState(false);
+  const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [savingRow, setSavingRow] = useState<string | null>(null);
   const [editingRow, setEditingRow] = useState<string | null>(null);
@@ -109,7 +110,7 @@ export default function AdminFeedbackPage() {
     const supabase = createClient();
     const { data, error: err } = await supabase
       .from("feedback_eintraege")
-      .select("id, created_at, updated_at, user_id, user_name, kategorie, beschreibung, seite, target, position_x, position_y, status, prioritaet, deadline")
+      .select("id, created_at, updated_at, user_id, user_name, kategorie, beschreibung, seite, target, position_x, position_y, status, prioritaet, deadline, archived")
       .order("created_at", { ascending: false });
     if (err) {
       setError(err.message);
@@ -243,17 +244,14 @@ export default function AdminFeedbackPage() {
   }, [editForm, editingRow, updateEntry]);
 
   const filtered = eintraege.filter((e) => {
+    if (activeTab === "active" && e.archived) return false;
+    if (activeTab === "archived" && !e.archived) return false;
     if (filterKategorie && e.kategorie !== filterKategorie) return false;
     if (filterStatus && e.status !== filterStatus) return false;
     if (filterPrioritaet && e.prioritaet !== filterPrioritaet) return false;
-    if (filterTarget && (e.target ?? "") !== filterTarget) return false;
     if (filterOverdueOnly && !isDeadlineOverdue(e.deadline)) return false;
     return true;
   });
-
-  const targetOptions = Array.from(
-    new Set(eintraege.map((e) => e.target).filter((t): t is string => !!t))
-  ).sort();
 
   if (userLoading) {
     return (
@@ -266,15 +264,31 @@ export default function AdminFeedbackPage() {
   if (!user) return null;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-100">
-          Feedback-Verwaltung
-        </h1>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Alle Feedback-Einträge (Bug, Idee, Optimierung) mit Kommentaren, Priorität, Status und Deadline.
-        </p>
-      </header>
+    <div className="space-y-6">
+      <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-700">
+        <button
+          type="button"
+          onClick={() => setActiveTab("active")}
+          className={`!rounded-none border-b-2 px-4 py-3 text-sm font-medium transition ${
+            activeTab === "active"
+              ? "border-[#FF6554] text-[#FF6554]"
+              : "border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+          }`}
+        >
+          Feedback
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("archived")}
+          className={`!rounded-none border-b-2 px-4 py-3 text-sm font-medium transition ${
+            activeTab === "archived"
+              ? "border-[#FF6554] text-[#FF6554]"
+              : "border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+          }`}
+        >
+          Archiv
+        </button>
+      </div>
 
       {error && (
         <div className="content-radius border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-800 dark:text-red-200">
@@ -282,109 +296,106 @@ export default function AdminFeedbackPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-          <span>Kategorie:</span>
-          <select
-            value={filterKategorie}
-            onChange={(e) => setFilterKategorie(e.target.value)}
-            className="rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-zinc-900 dark:text-zinc-100"
-          >
-            <option value="">Alle</option>
-            {KATEGORIEN.map((k) => (
-              <option key={k} value={k}>
-                {k}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-          <span>Status:</span>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-zinc-900 dark:text-zinc-100"
-          >
-            <option value="">Alle</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-          <span>Priorität:</span>
-          <select
-            value={filterPrioritaet}
-            onChange={(e) => setFilterPrioritaet(e.target.value)}
-            className="rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-zinc-900 dark:text-zinc-100"
-          >
-            <option value="">Alle</option>
-            {PRIORITAET_OPTIONS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-          <span>Ort (Target):</span>
-          <select
-            value={filterTarget}
-            onChange={(e) => setFilterTarget(e.target.value)}
-            className="rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-zinc-900 dark:text-zinc-100"
-          >
-            <option value="">Alle</option>
-            {targetOptions.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-          <input
-            type="checkbox"
-            checked={filterOverdueOnly}
-            onChange={(e) => setFilterOverdueOnly(e.target.checked)}
-          />
-          <span>Nur überfällige Deadlines</span>
-        </label>
-      </div>
+      <div className="flex gap-6">
+        <aside className="w-64 shrink-0 space-y-4">
+          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Filter</h3>
+          <label className="block text-sm text-zinc-700 dark:text-zinc-300">
+            <span className="mb-1 block">Kategorie</span>
+            <select
+              value={filterKategorie}
+              onChange={(e) => setFilterKategorie(e.target.value)}
+              className="w-full rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-zinc-900 dark:text-zinc-100"
+            >
+              <option value="">Alle</option>
+              {KATEGORIEN.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm text-zinc-700 dark:text-zinc-300">
+            <span className="mb-1 block">Status</span>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-zinc-900 dark:text-zinc-100"
+            >
+              <option value="">Alle</option>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm text-zinc-700 dark:text-zinc-300">
+            <span className="mb-1 block">Priorität</span>
+            <select
+              value={filterPrioritaet}
+              onChange={(e) => setFilterPrioritaet(e.target.value)}
+              className="w-full rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-zinc-900 dark:text-zinc-100"
+            >
+              <option value="">Alle</option>
+              {PRIORITAET_OPTIONS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+            <input
+              type="checkbox"
+              checked={filterOverdueOnly}
+              onChange={(e) => setFilterOverdueOnly(e.target.checked)}
+            />
+            <span>Nur überfällige Deadlines</span>
+          </label>
+        </aside>
 
-      {loading ? (
-        <p className="text-zinc-500 dark:text-zinc-400">Einträge werden geladen…</p>
-      ) : (
-        <div className="content-radius overflow-hidden border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
-                  <th className="whitespace-nowrap px-2 py-3 font-semibold text-zinc-700 dark:text-zinc-300">User</th>
-                  <th className="whitespace-nowrap px-2 py-3 text-center font-semibold text-zinc-700 dark:text-zinc-300">Kat.</th>
-                  <th className="whitespace-nowrap px-2 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Priorität</th>
-                  <th className="whitespace-nowrap px-2 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Deadline</th>
-                  <th className="whitespace-nowrap px-1 py-3 text-center font-semibold text-zinc-700 dark:text-zinc-300">Link</th>
-                  <th className="min-w-[16rem] px-3 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Beschreibung</th>
-                  <th className="min-w-[12rem] whitespace-nowrap px-2 py-3 font-semibold text-zinc-700 dark:text-zinc-300">
-                    Status
-                  </th>
-                  <th className="whitespace-nowrap px-2 py-3 text-right font-semibold text-zinc-700 dark:text-zinc-300">
-                    Aktionen
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((e) => (
-                  <Fragment key={e.id}>
-                    <tr
-                      className={`border-b align-top ${
-                        e.prioritaet === "Critical"
-                          ? "border-red-200 bg-red-50/70 dark:border-red-900/50 dark:bg-red-950/25 hover:bg-red-100/70 dark:hover:bg-red-950/35"
-                          : "border-zinc-100 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50"
-                      }`}
-                    >
+        <div className="min-w-0 flex-1 space-y-4">
+          <header>
+            <h1 className="text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-100">
+              {activeTab === "archived" ? "Feedback-Archiv" : "Feedback"}
+            </h1>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              Alle Feedback-Einträge (Bug, Idee, Optimierung) mit Kommentaren, Priorität, Status und Deadline.
+            </p>
+          </header>
+
+          {loading ? (
+            <p className="text-zinc-500 dark:text-zinc-400">Einträge werden geladen…</p>
+          ) : (
+            <div className="content-radius overflow-hidden border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[960px] border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
+                      <th className="whitespace-nowrap px-2 py-3 font-semibold text-zinc-700 dark:text-zinc-300">User</th>
+                      <th className="whitespace-nowrap px-2 py-3 text-center font-semibold text-zinc-700 dark:text-zinc-300">Kat.</th>
+                      <th className="whitespace-nowrap px-2 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Priorität</th>
+                      <th className="whitespace-nowrap px-2 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Deadline</th>
+                      <th className="whitespace-nowrap px-1 py-3 text-center font-semibold text-zinc-700 dark:text-zinc-300">Link</th>
+                      <th className="min-w-[16rem] px-3 py-3 font-semibold text-zinc-700 dark:text-zinc-300">Beschreibung</th>
+                      <th className="min-w-[12rem] whitespace-nowrap px-2 py-3 font-semibold text-zinc-700 dark:text-zinc-300">
+                        Status
+                      </th>
+                      <th className="whitespace-nowrap px-2 py-3 text-right font-semibold text-zinc-700 dark:text-zinc-300">
+                        Aktionen
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((e) => (
+                      <Fragment key={e.id}>
+                        <tr
+                          className={`border-b align-top ${
+                            e.prioritaet === "Critical"
+                              ? "border-red-200 bg-red-50/70 dark:border-red-900/50 dark:bg-red-950/25 hover:bg-red-100/70 dark:hover:bg-red-950/35"
+                              : "border-zinc-100 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50"
+                          }`}
+                        >
                       <td className="whitespace-nowrap px-2 py-3 align-top text-zinc-900 dark:text-zinc-100">
                         <span
                           className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100"
@@ -481,17 +492,30 @@ export default function AdminFeedbackPage() {
                       </td>
                       <td className="whitespace-nowrap px-2 py-3 align-top text-right">
                         <div className="flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => toggleEditPanel(e)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
-                            aria-label="Eintrag bearbeiten"
-                            title="Eintrag bearbeiten"
-                          >
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
-                            </svg>
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void updateEntry(e.id, { archived: !e.archived });
+                              }}
+                              className="inline-flex h-8 items-center justify-center rounded-full border border-zinc-300 px-2 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                              aria-label={e.archived ? "Eintrag wiederherstellen" : "Eintrag archivieren"}
+                              title={e.archived ? "Wiederherstellen" : "Archivieren"}
+                            >
+                              {e.archived ? "Restore" : "Archiv"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleEditPanel(e)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                              aria-label="Eintrag bearbeiten"
+                              title="Eintrag bearbeiten"
+                            >
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                         {savingRow === e.id && (
                           <p className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-400">Wird gespeichert…</p>
@@ -661,6 +685,8 @@ export default function AdminFeedbackPage() {
           )}
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }

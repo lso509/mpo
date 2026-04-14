@@ -4,8 +4,14 @@ import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/hooks/useUser";
 import { nochNichtImplementiert } from "@/lib/not-implemented";
 import { MediaplanPDFButton } from "@/components/MediaplanPDFButton";
-import type { AenderungshistorieEntry, CatalogProduct, MediaplanRow, PositionRow } from "@/lib/mediaplan/types";
-import { formatChf, formatDateRange, freigabeStatus } from "@/lib/mediaplan/utils";
+import type {
+  AenderungshistorieEntry,
+  CatalogProduct,
+  MediaplanDetailFormState,
+  MediaplanRow,
+  PositionRow,
+} from "@/lib/mediaplan/types";
+import { formatChf, formatDateRange, freigabeStatus, parseOptionalChfInput } from "@/lib/mediaplan/utils";
 import { useMediaplanData } from "@/hooks/useMediaplanData";
 import { Aenderungshistorie } from "@/components/shared/Aenderungshistorie";
 import { MediaplanBudgetOverview } from "@/components/mediaplan/MediaplanBudgetOverview";
@@ -747,7 +753,7 @@ export default function MediaplanDetailPage() {
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
   const [editPlanInfo, setEditPlanInfo] = useState(false);
   const [editKundenberater, setEditKundenberater] = useState(false);
-  const [planForm, setPlanForm] = useState({
+  const [planForm, setPlanForm] = useState<MediaplanDetailFormState>({
     client: "",
     status: "Entwurf",
     campaign: "",
@@ -766,6 +772,7 @@ export default function MediaplanDetailPage() {
     kunde_ap_email: "",
     kunde_ap_telefon: "",
     kunde_ap_mobil: "",
+    max_budget_chf: "",
   });
   const [savingPlan, setSavingPlan] = useState(false);
   const { user, role, loading: userLoading } = useUser();
@@ -799,8 +806,9 @@ export default function MediaplanDetailPage() {
       kunde_ap_email: plan.kunde_ap_email ?? "",
       kunde_ap_telefon: plan.kunde_ap_telefon ?? "",
       kunde_ap_mobil: plan.kunde_ap_mobil ?? "",
+      max_budget_chf: plan.max_budget_chf != null ? String(plan.max_budget_chf) : "",
     });
-  }, [plan?.id, plan?.client, plan?.kunde_name, plan?.status, plan?.campaign, plan?.date_range_start, plan?.date_range_end, plan?.kunde_adresse, plan?.kunde_email, plan?.kunde_telefon, plan?.kunde_ap_name, plan?.kunde_ap_position, plan?.kunde_ap_email, plan?.kunde_ap_telefon, plan?.kunde_ap_mobil, plan?.berater_name, plan?.berater_position, plan?.berater_email, plan?.berater_telefon, plan?.berater_mobil]);
+  }, [plan?.id, plan?.client, plan?.kunde_name, plan?.status, plan?.campaign, plan?.date_range_start, plan?.date_range_end, plan?.max_budget_chf, plan?.kunde_adresse, plan?.kunde_email, plan?.kunde_telefon, plan?.kunde_ap_name, plan?.kunde_ap_position, plan?.kunde_ap_email, plan?.kunde_ap_telefon, plan?.kunde_ap_mobil, plan?.berater_name, plan?.berater_position, plan?.berater_email, plan?.berater_telefon, plan?.berater_mobil]);
 
   const updatePlan = useCallback(
     async () => {
@@ -828,6 +836,7 @@ export default function MediaplanDetailPage() {
           kunde_ap_email: planForm.kunde_ap_email || null,
           kunde_ap_telefon: planForm.kunde_ap_telefon || null,
           kunde_ap_mobil: planForm.kunde_ap_mobil || null,
+          max_budget_chf: parseOptionalChfInput(planForm.max_budget_chf ?? ""),
         })
         .eq("id", planId);
       setSavingPlan(false);
@@ -1273,6 +1282,8 @@ export default function MediaplanDetailPage() {
             ausstehendSumme={ausstehendSumme}
             gesamtEinmalig={gesamtEinmalig}
             totalRabatt={totalRabatt}
+            summeAllePositionen={totalKundenpreis}
+            maxBudgetChf={plan.max_budget_chf ?? null}
           />
           <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-4">
             <h3 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Agentur Marge</h3>

@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { parseOptionalChfInput } from "@/lib/mediaplan/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -18,6 +19,7 @@ export default function NeuerMediaplanPage() {
   const [campaign, setCampaign] = useState("");
   const [dateRangeStart, setDateRangeStart] = useState("");
   const [dateRangeEnd, setDateRangeEnd] = useState("");
+  const [maxBudgetChf, setMaxBudgetChf] = useState("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -47,6 +49,7 @@ export default function NeuerMediaplanPage() {
       setSaving(false);
       return;
     }
+    const maxBudget = parseOptionalChfInput(maxBudgetChf);
     const { data, error: err } = await supabase
       .from("mediaplaene")
       .insert({
@@ -56,6 +59,7 @@ export default function NeuerMediaplanPage() {
         campaign: campaign.trim(),
         date_range_start: dateRangeStart || null,
         date_range_end: dateRangeEnd || null,
+        max_budget_chf: maxBudget,
       })
       .select("id")
       .single();
@@ -160,6 +164,21 @@ export default function NeuerMediaplanPage() {
                 className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
               />
             </div>
+          </div>
+          <div>
+            <label htmlFor="max_budget" className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+              Maximales Budget (optional)
+            </label>
+            <input
+              id="max_budget"
+              type="text"
+              inputMode="decimal"
+              value={maxBudgetChf}
+              onChange={(e) => setMaxBudgetChf(e.target.value)}
+              placeholder="z. B. 50000"
+              className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
+            />
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">CHF netto, Obergrenze für die Kampagnen-Positionen</p>
           </div>
           <div className="flex gap-3 pt-2">
             <button

@@ -5,6 +5,9 @@ type Props = {
   ausstehendSumme: number;
   gesamtEinmalig: number;
   totalRabatt: number;
+  /** Summe Kundenpreis aller Positionen (Vergleich mit Maximalbudget) */
+  summeAllePositionen?: number;
+  maxBudgetChf?: number | null;
 };
 
 export function MediaplanBudgetOverview({
@@ -12,11 +15,40 @@ export function MediaplanBudgetOverview({
   ausstehendSumme,
   gesamtEinmalig,
   totalRabatt,
+  summeAllePositionen,
+  maxBudgetChf,
 }: Props) {
+  const ueberBudget =
+    maxBudgetChf != null &&
+    maxBudgetChf > 0 &&
+    summeAllePositionen != null &&
+    summeAllePositionen > maxBudgetChf;
+
   return (
     <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-4">
       <h3 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Budgetübersicht</h3>
       <dl className="mt-3 space-y-1 text-sm">
+        {maxBudgetChf != null && maxBudgetChf > 0 && (
+          <div className="flex justify-between gap-4">
+            <dt className="text-zinc-600 dark:text-zinc-400">Maximales Budget</dt>
+            <dd className="font-medium text-zinc-900 dark:text-zinc-100 shrink-0">{formatChf(maxBudgetChf)}</dd>
+          </div>
+        )}
+        {summeAllePositionen != null && maxBudgetChf != null && maxBudgetChf > 0 && (
+          <div className="flex justify-between gap-4">
+            <dt className="text-zinc-600 dark:text-zinc-400">Summe aller Positionen</dt>
+            <dd
+              className={`font-medium shrink-0 ${ueberBudget ? "text-red-600 dark:text-red-400" : "text-zinc-900 dark:text-zinc-100"}`}
+            >
+              {formatChf(summeAllePositionen)}
+            </dd>
+          </div>
+        )}
+        {ueberBudget && (
+          <p className="text-xs text-red-600 dark:text-red-400">
+            Die Summe der Positions-Kundenpreise liegt über dem maximalen Budget.
+          </p>
+        )}
         <div className="flex justify-between gap-4">
           <dt className="text-zinc-600 dark:text-zinc-400">Bestätigte Positionen (exkl. MwSt.)</dt>
           <dd className="font-medium text-zinc-900 dark:text-zinc-100 shrink-0">{formatChf(bestaetigtSumme)}</dd>

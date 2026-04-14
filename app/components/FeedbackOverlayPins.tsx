@@ -32,6 +32,7 @@ type OverlayFeedback = {
   user_name: string | null;
   position_x: number;
   position_y: number;
+  archived: boolean;
 };
 
 export function FeedbackOverlayPins() {
@@ -59,8 +60,9 @@ export function FeedbackOverlayPins() {
     const supabase = createClient();
     const { data } = await supabase
       .from("feedback_eintraege")
-      .select("id, kategorie, beschreibung, status, prioritaet, deadline, created_at, updated_at, user_name, position_x, position_y")
+      .select("id, kategorie, beschreibung, status, prioritaet, deadline, created_at, updated_at, user_name, position_x, position_y, archived")
       .eq("target", "overlay")
+      .eq("archived", false)
       .eq("seite", pathname)
       .not("position_x", "is", null)
       .not("position_y", "is", null)
