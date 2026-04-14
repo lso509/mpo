@@ -201,10 +201,7 @@ function PositionListItem({
 
   const prozessStatus = localProzessStatus;
   const nextProzessStatus = (stepKey: string, current: string) => {
-    const order =
-      stepKey === "1"
-        ? (["Offen", "Freigegeben", "Erledigt", "N/A"] as const)
-        : (["Offen", "Erledigt", "N/A"] as const);
+    const order = ["Offen", "Erledigt", "N/A"] as const;
     const idx = (order as readonly string[]).indexOf(current);
     if (idx === -1) return order[0];
     return order[(idx + 1) % order.length];
@@ -215,6 +212,13 @@ function PositionListItem({
     (s) =>
       getProzessStatus(s.key) === "Erledigt" || getProzessStatus(s.key) === "Freigegeben"
   ).length;
+  const prozessActiveCount = PROZESS_SCHRITTE.filter(
+    (s) => getProzessStatus(s.key) !== "N/A"
+  ).length;
+  const prozessPercent =
+    prozessActiveCount === 0
+      ? 100
+      : Math.round((prozessDoneCount / prozessActiveCount) * 100);
 
   const handleProzessStepClick = (stepKey: string) => {
     const current = getProzessStatus(stepKey);
@@ -402,57 +406,134 @@ function PositionListItem({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  Prozessstatus
-                </h4>
-                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                  {prozessDoneCount}/{PROZESS_SCHRITTE.length}
-                </span>
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                {/* Kreis linksbündig neben Headline; N/A zählt nicht mit */}
+                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden">
+                  <svg className="h-10 w-10 -rotate-90 shrink-0" viewBox="0 0 36 36" aria-hidden>
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="15.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      className="text-zinc-200 dark:text-zinc-600"
+                    />
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="15.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeDasharray={`${2 * Math.PI * 15.5}`}
+                      strokeDashoffset={`${2 * Math.PI * 15.5 * (1 - prozessPercent / 100)}`}
+                      strokeLinecap="round"
+                      className={
+                        prozessPercent === 0
+                          ? "text-zinc-300 dark:text-zinc-500"
+                          : prozessPercent === 100
+                            ? "text-emerald-500 dark:text-emerald-400"
+                            : "text-amber-500 dark:text-amber-400"
+                      }
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center overflow-hidden text-[10px] font-medium leading-none tabular-nums text-zinc-600 dark:text-zinc-400">
+                    {prozessPercent}%
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    Prozessstatus
+                  </h4>
+                  <span className="text-sm">
+                    <span className="font-semibold text-zinc-800 dark:text-zinc-100">{prozessDoneCount}</span>
+                    <span className="font-normal text-zinc-500 dark:text-zinc-400">
+                      /{prozessActiveCount === 0 ? PROZESS_SCHRITTE.length : prozessActiveCount}
+                    </span>
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setProzessCollapsed((c) => !c)}
-                className="rounded-full border border-zinc-200 dark:border-zinc-600 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                className="shrink-0 rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
               >
                 {prozessCollapsed ? "Aufklappen" : "Einklappen"}
               </button>
             </div>
             {!prozessCollapsed && (
               <>
+                {/* Linearer Fortschrittsbalken */}
+                <div className="mb-4 mt-1">
+                  <div
+                    className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700"
+                    role="progressbar"
+                    aria-valuenow={prozessDoneCount}
+                    aria-valuemin={0}
+                    aria-valuemax={prozessActiveCount === 0 ? PROZESS_SCHRITTE.length : prozessActiveCount}
+                    aria-label={`Fortschritt ${prozessDoneCount} von ${prozessActiveCount === 0 ? PROZESS_SCHRITTE.length : prozessActiveCount} relevanten Schritten (N/A ausgenommen)`}
+                  >
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        prozessPercent === 0
+                          ? "bg-zinc-400 dark:bg-zinc-500"
+                          : prozessPercent === 100
+                            ? "bg-emerald-500 dark:bg-emerald-400"
+                            : "bg-amber-500 dark:bg-amber-400"
+                      }`}
+                      style={{ width: `${prozessPercent}%` }}
+                    />
+                  </div>
+                </div>
                 <ul className="space-y-1.5 text-sm">
                   {PROZESS_SCHRITTE.map(({ key, label }) => {
                     const status = getProzessStatus(key);
                     const isDone = status === "Erledigt" || status === "Freigegeben";
                     const isNa = status === "N/A";
-                    const { bg, bgDark } = prozessSchrittFarbe(Number(key) || 1);
+                    const rowBg =
+                      isDone
+                        ? "bg-emerald-100 dark:bg-emerald-900/30"
+                        : isNa
+                          ? "bg-zinc-100 dark:bg-zinc-700"
+                          : "bg-[var(--accent-muted)] dark:bg-rose-900/25";
                     return (
                       <li
                         key={key}
                         onClick={() => handleProzessStepClick(key)}
-                        className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors hover:opacity-90 bg-[var(--step-bg)] dark:bg-[var(--step-bg-dark)]"
-                        style={
-                          {
-                            "--step-bg": bg,
-                            "--step-bg-dark": bgDark,
-                          } as React.CSSProperties
-                        }
+                        className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors hover:opacity-90 ${rowBg}`}
                       >
                         <span className="text-zinc-800 dark:text-zinc-200">
                           {key}. {label}
                         </span>
-                        <span className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                            isDone
+                              ? "border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/30"
+                              : isNa
+                                ? "border-zinc-300 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-700"
+                                : "border-rose-300 bg-[var(--accent-muted)] dark:border-rose-700 dark:bg-rose-900/25"
+                          }`}
+                          title={status}
+                        >
                           <span
-                            className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${
+                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                               isDone
-                                ? "bg-zinc-900 dark:bg-zinc-100"
+                                ? "bg-emerald-600 dark:bg-emerald-400"
                                 : isNa
-                                  ? "bg-zinc-300 dark:bg-zinc-600"
-                                  : "bg-zinc-300 dark:bg-zinc-600"
+                                  ? "bg-zinc-500 dark:bg-zinc-400"
+                                  : "bg-rose-600 dark:bg-rose-400"
                             }`}
-                            title={status}
                           />
-                          <span className="min-w-[4.5rem] text-right text-xs text-zinc-600 dark:text-zinc-400">
+                          <span
+                            className={
+                              isDone
+                                ? "text-emerald-700 dark:text-emerald-300"
+                                : isNa
+                                  ? "text-zinc-600 dark:text-zinc-300"
+                                  : "text-rose-700 dark:text-rose-300"
+                            }
+                          >
                             {status}
                           </span>
                         </span>
@@ -461,7 +542,7 @@ function PositionListItem({
                   })}
                 </ul>
                 <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-                  Klicke auf einen Status: Offen → Erledigt → N/A
+                  Klicke auf einen Schritt: Offen → Erledigt → N/A
                 </p>
               </>
             )}

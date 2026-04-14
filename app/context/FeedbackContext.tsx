@@ -7,7 +7,7 @@ export type FeedbackPosition = { x: number; y: number };
 type FeedbackContextValue = {
   open: boolean;
   initialTarget: string | null;
-  /** Position in Viewport-Prozent (0–100), nur bei target=overlay. */
+  /** Position in Prozent relativ zum Scroll-Content (0–100), nur bei target=overlay. */
   initialPosition: FeedbackPosition | null;
   openFeedback: (target?: string) => void;
   /** Öffnet Feedback-Formular mit target=overlay und gesetzter Position (nach Klick im Overlay). */

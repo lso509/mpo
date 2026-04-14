@@ -25,11 +25,13 @@ export function SearchField() {
   const [, startTransition] = useTransition();
 
   const isProdukte = pathname === "/produkte";
-  const searchValue = isProdukte ? (searchParams.get("q") ?? "") : "";
+  const isMediaplaene = pathname === "/mediaplaene";
+  const hasSearch = isProdukte || isMediaplaene;
+  const searchValue = hasSearch ? (searchParams.get("q") ?? "") : "";
 
   const setSearchQuery = useCallback(
     (value: string) => {
-      if (!isProdukte) return;
+      if (!hasSearch) return;
       startTransition(() => {
         const next = new URLSearchParams(searchParams.toString());
         if (value.trim()) next.set("q", value);
@@ -38,21 +40,27 @@ export function SearchField() {
         router.replace(pathname + (query ? `?${query}` : ""), { scroll: false });
       });
     },
-    [isProdukte, pathname, router, searchParams]
+    [hasSearch, pathname, router, searchParams]
   );
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (isProdukte) setSearchQuery(e.target.value);
+      if (hasSearch) setSearchQuery(e.target.value);
     },
-    [isProdukte, setSearchQuery]
+    [hasSearch, setSearchQuery]
   );
+
+  const placeholder = isProdukte
+    ? "Produktkatalog durchsuchen…"
+    : isMediaplaene
+      ? "Mediapläne durchsuchen…"
+      : "Search here...";
 
   return (
     <div className="flex w-full max-w-2xl items-center rounded-full bg-[var(--haupt-box-bg)] dark:bg-zinc-800 h-[54px]">
       <button
         type="button"
-        onClick={nochNichtImplementiert}
+        onClick={hasSearch ? undefined : nochNichtImplementiert}
         className="flex h-[54px] w-[54px] shrink-0 items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-l-full transition-colors"
         aria-label="Suche"
       >
@@ -60,7 +68,7 @@ export function SearchField() {
       </button>
       <input
         type="search"
-        placeholder={isProdukte ? "Produktkatalog durchsuchen…" : "Search here..."}
+        placeholder={placeholder}
         value={searchValue}
         onChange={handleChange}
         className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none"

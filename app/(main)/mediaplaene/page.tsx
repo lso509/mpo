@@ -52,6 +52,7 @@ export default function MediaplaenePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const showArchived = searchParams.get("tab") === "archiv";
+  const searchQuery = (searchParams.get("q") ?? "").trim().toLowerCase();
   const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
   const [plans, setPlans] = useState<Mediaplan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,9 +191,24 @@ export default function MediaplaenePage() {
     const byTab = showArchived
       ? plans.filter((p) => p.status === "Archiviert")
       : plans.filter((p) => p.status !== "Archiviert");
-    if (showArchived || filterStatuses.length === 0) return byTab;
-    return byTab.filter((p) => filterStatuses.includes(p.status));
-  }, [plans, showArchived, filterStatuses]);
+    const byStatus =
+      showArchived || filterStatuses.length === 0
+        ? byTab
+        : byTab.filter((p) => filterStatuses.includes(p.status));
+    if (!searchQuery) return byStatus;
+    return byStatus.filter((p) => {
+      const client = (p.client ?? "").toLowerCase();
+      const campaign = (p.campaign ?? "").toLowerCase();
+      const kunde = (p.kunde_name ?? "").toLowerCase();
+      const status = (p.status ?? "").toLowerCase();
+      return (
+        client.includes(searchQuery) ||
+        campaign.includes(searchQuery) ||
+        kunde.includes(searchQuery) ||
+        status.includes(searchQuery)
+      );
+    });
+  }, [plans, showArchived, filterStatuses, searchQuery]);
 
   return (
     <div className="flex gap-6 p-6">

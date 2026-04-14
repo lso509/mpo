@@ -3,10 +3,8 @@
 import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/hooks/useUser";
 import { useFeedback } from "@/app/context/FeedbackContext";
+import { KATEGORIEN, PRIORITAET_OPTIONS, STATUS_OPTIONS, type FeedbackPrioritaet, type FeedbackStatus, type Kategorie } from "@/app/components/feedback/shared";
 import { useCallback, useEffect, useState } from "react";
-
-const KATEGORIEN = ["Bug", "Idee", "Verbesserung"] as const;
-type Kategorie = (typeof KATEGORIEN)[number];
 
 export function FeedbackWidget() {
   const { user, loading } = useUser();
@@ -21,6 +19,9 @@ export function FeedbackWidget() {
   const [kategorie, setKategorie] = useState<Kategorie | null>(null);
   const [beschreibung, setBeschreibung] = useState("");
   const [target, setTarget] = useState("");
+  const [prioritaet, setPrioritaet] = useState<FeedbackPrioritaet>("Low");
+  const [status, setStatus] = useState<FeedbackStatus>("Offen");
+  const [deadline, setDeadline] = useState("");
   const [sending, setSending] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -28,10 +29,14 @@ export function FeedbackWidget() {
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSuccess(false);
       setKategorie(null);
       setBeschreibung("");
       setTarget(initialTarget ?? "");
+      setPrioritaet("Low");
+      setStatus("Offen");
+      setDeadline("");
     }
   }, [open, initialTarget]);
 
@@ -44,6 +49,9 @@ export function FeedbackWidget() {
     setKategorie(null);
     setBeschreibung("");
     setTarget("");
+    setPrioritaet("Low");
+    setStatus("Offen");
+    setDeadline("");
     closeFeedback();
   }, [closeFeedback]);
 
@@ -64,6 +72,9 @@ export function FeedbackWidget() {
       beschreibung: beschreibung.trim(),
       seite: seite || null,
       target: isOverlayPosition ? "overlay" : (target.trim() || null),
+      prioritaet,
+      status,
+      deadline: deadline || null,
     };
     if (isOverlayPosition && initialPosition) {
       payload.position_x = initialPosition.x;
@@ -79,8 +90,11 @@ export function FeedbackWidget() {
     setBeschreibung("");
     setKategorie(null);
     setTarget("");
+    setPrioritaet("Low");
+    setStatus("Offen");
+    setDeadline("");
     setTimeout(handleClose, 1500);
-  }, [kategorie, beschreibung, target, user, handleClose, isOverlayPosition, initialPosition]);
+  }, [kategorie, beschreibung, target, prioritaet, status, deadline, user, handleClose, isOverlayPosition, initialPosition]);
 
   if (loading || !user) return null;
 
@@ -167,6 +181,47 @@ export function FeedbackWidget() {
                     </button>
                   ))}
                 </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Priorität
+                    <select
+                      value={prioritaet}
+                      onChange={(e) => setPrioritaet(e.target.value as FeedbackPrioritaet)}
+                      className="mt-1 w-full rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:border-[#FF6554] focus:outline-none focus:ring-1 focus:ring-[#FF6554]"
+                    >
+                      {PRIORITAET_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Status
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as FeedbackStatus)}
+                      className="mt-1 w-full rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:border-[#FF6554] focus:outline-none focus:ring-1 focus:ring-[#FF6554]"
+                    >
+                      {STATUS_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <label className="mt-3 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Deadline
+                </label>
+                <input
+                  type="date"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                  className="mt-1 w-full rounded-full border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:border-[#FF6554] focus:outline-none focus:ring-1 focus:ring-[#FF6554]"
+                />
 
                 {!isOverlayPosition && (
                   <>

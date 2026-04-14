@@ -2,6 +2,7 @@
 
 import { useFeedback } from "@/app/context/FeedbackContext";
 import { useScrollContainer } from "@/app/context/ScrollContainerContext";
+import { overlayPositionPercent } from "@/app/components/feedback/shared";
 import { useCallback } from "react";
 
 export function FeedbackOverlayLayer() {
@@ -14,18 +15,7 @@ export function FeedbackOverlayLayer() {
       e.preventDefault();
       e.stopPropagation();
       const el = scrollContainerRef?.current;
-      if (!el) {
-        // Fallback: Viewport-Prozent (wie bisher)
-        const x = (e.clientX / window.innerWidth) * 100;
-        const y = (e.clientY / window.innerHeight) * 100;
-        openFeedbackAtPosition(x, y);
-        return;
-      }
-      const rect = el.getBoundingClientRect();
-      const contentX = el.scrollLeft + (e.clientX - rect.left);
-      const contentY = el.scrollTop + (e.clientY - rect.top);
-      const position_x = (contentX / el.scrollWidth) * 100;
-      const position_y = (contentY / el.scrollHeight) * 100;
+      const { x: position_x, y: position_y } = overlayPositionPercent(e.clientX, e.clientY, el ?? null);
       openFeedbackAtPosition(position_x, position_y);
     },
     [overlayMode, openFeedbackAtPosition, scrollContainerRef]
