@@ -98,6 +98,15 @@ function getDefaultTaskConfig(title: string): { tage: number; richtung: Richtung
   return TASK_AUTOMATION_DEFAULTS[title] ?? { tage: 0, richtung: "vor", referenz: "Enddatum" };
 }
 
+/** z. B. React Strict Mode oder parallele Requests — kein Schema-Problem */
+function isTransientSupabaseLoadError(message: string): boolean {
+  return /AbortError|Lock was stolen|The user aborted|aborted a request/i.test(message);
+}
+
+function isSchemaRelatedError(message: string): boolean {
+  return /column|schema|does not exist|42703|Could not find/i.test(message);
+}
+
 function mapRow(row: Record<string, unknown>): Product {
   const category = row.category ?? row.kategorie ?? "";
   const name = row.produktvariante_titel ?? row.name ?? "";
@@ -483,14 +492,26 @@ export default function ProduktePage() {
 
   useEffect(() => {
     const supabase = createClient();
-    async function load() {
-      setLoading(true);
-      setError(null);
-      const { data, error: err } = await supabase
+    let cancelled = false;
+
+    async function fetchList() {
+      return supabase
         .from("produkte")
         .select("*")
         .order("category", { ascending: true })
         .order("id", { ascending: true });
+    }
+
+    (async () => {
+      setLoading(true);
+      setError(null);
+      let { data, error: err } = await fetchList();
+      if (err && isTransientSupabaseLoadError(err.message)) {
+        await new Promise((r) => setTimeout(r, 200));
+        if (cancelled) return;
+        ({ data, error: err } = await fetchList());
+      }
+      if (cancelled) return;
       if (err) {
         setError(err.message);
         setProducts([]);
@@ -498,8 +519,11 @@ export default function ProduktePage() {
         setProducts((data ?? []).map(mapRow));
       }
       setLoading(false);
-    }
-    load();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleExcelExport = () => {
@@ -921,13 +945,15 @@ export default function ProduktePage() {
         {error && (
           <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/50 p-4 text-sm text-red-800 dark:text-red-200">
             <p>Fehler beim Laden: {error}</p>
-            <p className="mt-2 text-red-700 dark:text-red-300">
-              Falls die Tabelle noch nicht alle Spalten hat: Im Supabase Dashboard
-              (SQL Editor) die Migration ausführen:{" "}
-              <code className="rounded bg-red-100 dark:bg-red-900/50 px-1">
-                supabase/migrations/008_produkte_groesse_einheit_waehrung.sql
-              </code>
-            </p>
+            {isSchemaRelatedError(error) && (
+              <p className="mt-2 text-red-700 dark:text-red-300">
+                Falls die Tabelle noch nicht alle Spalten hat: Im Supabase Dashboard
+                (SQL Editor) die Migration ausführen:{" "}
+                <code className="rounded bg-red-100 dark:bg-red-900/50 px-1">
+                  supabase/migrations/008_produkte_groesse_einheit_waehrung.sql
+                </code>
+              </p>
+            )}
           </div>
         )}
 
