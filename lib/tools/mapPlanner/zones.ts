@@ -1,0 +1,293 @@
+import type { MapZone, ZoneGroupMeta } from "./types";
+
+/**
+ * Werbezonen-Gruppen (Reihenfolge = Sidebar).
+ * PLZ-Listen sind Stichproben / erweiterbar – ohne Anspruch auf Vollständigkeit.
+ */
+export const ZONE_GROUPS: ZoneGroupMeta[] = [
+  { id: "bodensee", label: "Bodensee" },
+  { id: "stgallen", label: "St. Gallen" },
+  { id: "rheintal", label: "Rheintal" },
+  { id: "werdenberg", label: "Werdenberg" },
+  { id: "liechtenstein", label: "Liechtenstein" },
+  { id: "sarganserland", label: "Sarganserland" },
+  { id: "buendner_rheintal", label: "Bündner Rheintal" },
+  { id: "vorarlberg", label: "Vorarlberg" },
+];
+
+export const MAP_ZONES: MapZone[] = [
+  {
+    id: "bodensee-west",
+    groupId: "bodensee",
+    name: "Bodensee West",
+    color: "#FFE4B5",
+    center: [47.515, 9.43],
+    radius: 5000,
+    plzData: [
+      { postal_code: "8580", municipality: "Amriswil", canton: "TG", country: "CH" },
+      { postal_code: "8589", municipality: "Sitterdorf", canton: "TG", country: "CH" },
+      { postal_code: "8590", municipality: "Romanshorn", canton: "TG", country: "CH" },
+      { postal_code: "8592", municipality: "Uttwil", canton: "TG", country: "CH" },
+      { postal_code: "8593", municipality: "Kesswil", canton: "TG", country: "CH" },
+      { postal_code: "8572", municipality: "Berg", canton: "TG", country: "CH" },
+      { postal_code: "8573", municipality: "Altnau", canton: "TG", country: "CH" },
+    ],
+  },
+  {
+    id: "bodensee-mitte",
+    groupId: "bodensee",
+    name: "Bodensee Mitte",
+    color: "#FFE4B5",
+    center: [47.65, 9.18],
+    radius: 5500,
+    plzData: [
+      { postal_code: "8280", municipality: "Kreuzlingen", canton: "TG", country: "CH" },
+      { postal_code: "8598", municipality: "Bottighofen", canton: "TG", country: "CH" },
+      { postal_code: "8599", municipality: "Salmsach", canton: "TG", country: "CH" },
+      { postal_code: "8574", municipality: "Illhorn", canton: "TG", country: "CH" },
+      { postal_code: "8260", municipality: "Stein am Rhein", canton: "SH", country: "CH" },
+    ],
+  },
+  {
+    id: "bodensee-ost",
+    groupId: "bodensee",
+    name: "Bodensee Ost",
+    color: "#FFE4B5",
+    center: [47.52, 9.75],
+    radius: 6000,
+    plzData: [
+      { postal_code: "6900", municipality: "Bregenz", canton: "Vbg", country: "AT" },
+      { postal_code: "6911", municipality: "Lochau", canton: "Vbg", country: "AT" },
+      { postal_code: "6971", municipality: "Hard", canton: "Vbg", country: "AT" },
+      { postal_code: "6973", municipality: "Höchst", canton: "Vbg", country: "AT" },
+      { postal_code: "6850", municipality: "Dornbirn", canton: "Vbg", country: "AT" },
+    ],
+  },
+  {
+    id: "stgallen-stadt",
+    groupId: "stgallen",
+    name: "St. Gallen Stadt",
+    color: "#E0E7FF",
+    center: [47.424, 9.375],
+    radius: 4500,
+    plzData: [
+      { postal_code: "9000", municipality: "St. Gallen", canton: "SG", country: "CH" },
+      { postal_code: "9008", municipality: "St. Gallen", canton: "SG", country: "CH" },
+      { postal_code: "9010", municipality: "St. Gallen", canton: "SG", country: "CH" },
+      { postal_code: "9012", municipality: "St. Gallen", canton: "SG", country: "CH" },
+      { postal_code: "9014", municipality: "St. Gallen", canton: "SG", country: "CH" },
+    ],
+  },
+  {
+    id: "stgallen-agglomeration",
+    groupId: "stgallen",
+    name: "St. Gallen Agglomeration",
+    color: "#E0E7FF",
+    center: [47.41, 9.32],
+    radius: 7000,
+    plzData: [
+      { postal_code: "9015", municipality: "St. Gallen", canton: "SG", country: "CH" },
+      { postal_code: "9042", municipality: "Speicher", canton: "SG", country: "CH" },
+      { postal_code: "9030", municipality: "Abtwil SG", canton: "SG", country: "CH" },
+      { postal_code: "9032", municipality: "Engelburg", canton: "SG", country: "CH" },
+      { postal_code: "9033", municipality: "Untereggen", canton: "SG", country: "CH" },
+    ],
+  },
+  {
+    id: "stgallen-fuerstenland",
+    groupId: "stgallen",
+    name: "Fürstenland / Wil",
+    color: "#E0E7FF",
+    center: [47.465, 9.05],
+    radius: 8000,
+    plzData: [
+      { postal_code: "9500", municipality: "Wil SG", canton: "SG", country: "CH" },
+      { postal_code: "9512", municipality: "Rossrüti", canton: "SG", country: "CH" },
+      { postal_code: "9515", municipality: "Hefenhofen", canton: "TG", country: "CH" },
+      { postal_code: "9552", municipality: "Brunnadern", canton: "SG", country: "CH" },
+    ],
+  },
+  {
+    id: "rheintal-nord",
+    groupId: "rheintal",
+    name: "Rheintal Nord",
+    color: "#D1FAE5",
+    center: [47.385, 9.58],
+    radius: 7500,
+    plzData: [
+      { postal_code: "9442", municipality: "Berneck", canton: "SG", country: "CH" },
+      { postal_code: "9443", municipality: "Widnau", canton: "SG", country: "CH" },
+      { postal_code: "9444", municipality: "Diepoldsau", canton: "SG", country: "CH" },
+      { postal_code: "9450", municipality: "Altstätten SG", canton: "SG", country: "CH" },
+    ],
+  },
+  {
+    id: "rheintal-mitte",
+    groupId: "rheintal",
+    name: "Rheintal Mitte",
+    color: "#D1FAE5",
+    center: [47.33, 9.52],
+    radius: 7000,
+    plzData: [
+      { postal_code: "9435", municipality: "Heerbrugg", canton: "SG", country: "CH" },
+      { postal_code: "9436", municipality: "Balgach", canton: "SG", country: "CH" },
+      { postal_code: "9437", municipality: "Marbach SG", canton: "SG", country: "CH" },
+      { postal_code: "9464", municipality: "Rüthi SG", canton: "SG", country: "CH" },
+    ],
+  },
+  {
+    id: "rheintal-sued",
+    groupId: "rheintal",
+    name: "Rheintal Süd",
+    color: "#D1FAE5",
+    center: [47.25, 9.48],
+    radius: 8000,
+    plzData: [
+      { postal_code: "9470", municipality: "Buchs SG", canton: "SG", country: "CH" },
+      { postal_code: "9471", municipality: "Buchs SG", canton: "SG", country: "CH" },
+      { postal_code: "9472", municipality: "Grabs", canton: "SG", country: "CH" },
+      { postal_code: "9473", municipality: "Werdenberg", canton: "SG", country: "CH" },
+    ],
+  },
+  {
+    id: "werdenberg-nord",
+    groupId: "werdenberg",
+    name: "Werdenberg Nord",
+    color: "#FCE7F3",
+    center: [47.18, 9.48],
+    radius: 6500,
+    plzData: [
+      { postal_code: "9475", municipality: "Sevelen", canton: "SG", country: "CH" },
+      { postal_code: "9476", municipality: "Fontnas", canton: "SG", country: "CH" },
+      { postal_code: "9477", municipality: "Trübbach", canton: "SG", country: "CH" },
+    ],
+  },
+  {
+    id: "werdenberg-sued",
+    groupId: "werdenberg",
+    name: "Werdenberg Süd",
+    color: "#FCE7F3",
+    center: [47.12, 9.52],
+    radius: 6500,
+    plzData: [
+      { postal_code: "9478", municipality: "Weite", canton: "SG", country: "CH" },
+      { postal_code: "9479", municipality: "Gams", canton: "SG", country: "CH" },
+      { postal_code: "8872", municipality: "Weesen", canton: "SG", country: "CH" },
+    ],
+  },
+  {
+    id: "liechtenstein-nord",
+    groupId: "liechtenstein",
+    name: "Liechtenstein Nord",
+    color: "#FEF3C7",
+    center: [47.24, 9.52],
+    radius: 4000,
+    plzData: [
+      { postal_code: "9485", municipality: "Nendeln", canton: "FL", country: "LI" },
+      { postal_code: "9486", municipality: "Schaanwald", canton: "FL", country: "LI" },
+      { postal_code: "9487", municipality: "Gamprin-Bendern", canton: "FL", country: "LI" },
+    ],
+  },
+  {
+    id: "liechtenstein-sued",
+    groupId: "liechtenstein",
+    name: "Liechtenstein Süd",
+    color: "#FEF3C7",
+    center: [47.12, 9.52],
+    radius: 4500,
+    plzData: [
+      { postal_code: "9490", municipality: "Vaduz", canton: "FL", country: "LI" },
+      { postal_code: "9494", municipality: "Schaan", canton: "FL", country: "LI" },
+      { postal_code: "9495", municipality: "Triesen", canton: "FL", country: "LI" },
+      { postal_code: "9496", municipality: "Balzers", canton: "FL", country: "LI" },
+    ],
+  },
+  {
+    id: "sarganserland",
+    groupId: "sarganserland",
+    name: "Sarganserland",
+    color: "#E9D5FF",
+    center: [47.08, 9.45],
+    radius: 9000,
+    plzData: [
+      { postal_code: "7320", municipality: "Sargans", canton: "SG", country: "CH" },
+      { postal_code: "7310", municipality: "Bad Ragaz", canton: "SG", country: "CH" },
+      { postal_code: "8880", municipality: "Walenstadt", canton: "SG", country: "CH" },
+      { postal_code: "8890", municipality: "Flums", canton: "SG", country: "CH" },
+    ],
+  },
+  {
+    id: "buendner-rheintal",
+    groupId: "buendner_rheintal",
+    name: "Bündner Rheintal",
+    color: "#CCFBF1",
+    center: [46.85, 9.53],
+    radius: 12000,
+    plzData: [
+      { postal_code: "7000", municipality: "Chur", canton: "GR", country: "CH" },
+      { postal_code: "7012", municipality: "Felsberg", canton: "GR", country: "CH" },
+      { postal_code: "7013", municipality: "Domat/Ems", canton: "GR", country: "CH" },
+      { postal_code: "7208", municipality: "Malans", canton: "GR", country: "CH" },
+    ],
+  },
+  {
+    id: "vorarlberg-nord",
+    groupId: "vorarlberg",
+    name: "Vorarlberg Nord",
+    color: "#FEE2E2",
+    center: [47.58, 9.72],
+    radius: 8000,
+    plzData: [
+      { postal_code: "6921", municipality: "Kennelbach", canton: "Vbg", country: "AT" },
+      { postal_code: "6922", municipality: "Wolfurt", canton: "Vbg", country: "AT" },
+      { postal_code: "6923", municipality: "Lauterach", canton: "Vbg", country: "AT" },
+    ],
+  },
+  {
+    id: "vorarlberg-mitte",
+    groupId: "vorarlberg",
+    name: "Vorarlberg Mitte",
+    color: "#FEE2E2",
+    center: [47.42, 9.74],
+    radius: 9000,
+    plzData: [
+      { postal_code: "6850", municipality: "Dornbirn", canton: "Vbg", country: "AT" },
+      { postal_code: "6840", municipality: "Götzis", canton: "Vbg", country: "AT" },
+      { postal_code: "6830", municipality: "Rankweil", canton: "Vbg", country: "AT" },
+    ],
+  },
+  {
+    id: "vorarlberg-sued",
+    groupId: "vorarlberg",
+    name: "Vorarlberg Süd",
+    color: "#FEE2E2",
+    center: [47.25, 9.62],
+    radius: 8500,
+    plzData: [
+      { postal_code: "6800", municipality: "Feldkirch", canton: "Vbg", country: "AT" },
+      { postal_code: "6811", municipality: "Hörbranz", canton: "Vbg", country: "AT" },
+      { postal_code: "6820", municipality: "Frastanz", canton: "Vbg", country: "AT" },
+    ],
+  },
+  {
+    id: "vorarlberg-bergland",
+    groupId: "vorarlberg",
+    name: "Vorarlberg Bergland",
+    color: "#FEE2E2",
+    center: [47.12, 9.85],
+    radius: 10000,
+    plzData: [
+      { postal_code: "6700", municipality: "Bludenz", canton: "Vbg", country: "AT" },
+      { postal_code: "6706", municipality: "Bürs", canton: "Vbg", country: "AT" },
+      { postal_code: "6708", municipality: "Brand", canton: "Vbg", country: "AT" },
+    ],
+  },
+];
+
+export function getZoneById(id: string): MapZone | undefined {
+  return MAP_ZONES.find((z) => z.id === id);
+}
+
+export function zonesInGroup(groupId: string): MapZone[] {
+  return MAP_ZONES.filter((z) => z.groupId === groupId);
+}
