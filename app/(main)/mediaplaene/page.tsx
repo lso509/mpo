@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { formatChf } from "@/lib/mediaplan/utils";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -30,14 +31,6 @@ function formatDateRange(start: string | null, end: string | null): string {
   if (!start) return end ? fmt(end) : "—";
   if (!end) return fmt(start);
   return `${fmt(start)} - ${fmt(end)}`;
-}
-
-function formatChf(n: number): string {
-  return new Intl.NumberFormat("de-CH", {
-    style: "decimal",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n) + " CHF";
 }
 
 function toggleFilter(

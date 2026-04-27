@@ -48,6 +48,7 @@ export type PositionRow = {
   kundenpreis: number | null;
   status_tags: string[] | null;
   sort_order: number;
+  position_kategorie?: string | null;
   start_date: string | null;
   end_date: string | null;
   creative_deadline: string | null;
@@ -90,9 +91,11 @@ export type CatalogProduct = {
   laufzeit_pro_einheit: string | null;
   preis_brutto_chf: number | null;
   preis_netto_chf: number | null;
+  werbeabgabe_at?: boolean | null;
   preis_agenturservice: number | null;
   empfohlenes_medienbudget: string | null;
   buchungsvoraussetzung: string | null;
+  buchungsschluss_info?: string | null;
   beispiel_bild: string | null;
   creative_groesse_einheit?: string | null;
   waehrung?: string | null;

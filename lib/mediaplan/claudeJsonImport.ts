@@ -273,7 +273,7 @@ function formatDiscountText(pos: ClaudeJsonPosition): string | null {
   if (rp == null && (chf == null || chf === 0)) return null;
   const parts: string[] = [];
   if (rp != null) parts.push(`${(rp * 100).toLocaleString("de-CH", { maximumFractionDigits: 2 })} %`);
-  if (chf != null && chf !== 0) parts.push(`${chf.toLocaleString("de-CH", { minimumFractionDigits: 2 })} CHF`);
+  if (chf != null && chf !== 0) parts.push(`CHF ${chf.toLocaleString("de-CH", { minimumFractionDigits: 2 })}`);
   return parts.length ? parts.join(", Rabatt ") : null;
 }
 

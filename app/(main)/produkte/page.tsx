@@ -1,6 +1,7 @@
 "use client";
 
 import { NeuesProduktButton } from "@/app/components/NeuesProduktButton";
+import { formatChf } from "@/lib/mediaplan/utils";
 import { createClient } from "@/lib/supabase/client";
 import { categoryLabel as libCategoryLabel } from "@/lib/produkte";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -9,13 +10,13 @@ import * as XLSX from "xlsx";
 
 const CATEGORIES = [
   "Aussenwerbung",
+  "CUSTOM",
+  "HANDLING",
   "KINO",
+  "ONLINE",
   "ÖV",
   "PRINT",
-  "ONLINE",
-  "HANDLING",
   "SERVICES",
-  "CUSTOM",
 ];
 
 const categoryLabel = libCategoryLabel;
@@ -30,6 +31,7 @@ export type Product = {
   verlag: string | null;
   kanal: string | null;
   produktgruppe: string | null;
+  useCase: string[];
   produktvarianteTitel: string | null;
   beispielBild: string | null;
   platzierung: string | null;
@@ -47,6 +49,7 @@ export type Product = {
   creativeTyp: string | null;
   creativeDeadlineTage: number | null;
   creativeDeadlineDate: string | null;
+  editionType?: "na" | "ga" | null;
   laufzeitProEinheit: string | null;
   preisBruttoChf: number | null;
   preisNettoChf: number | null;
@@ -54,6 +57,7 @@ export type Product = {
   mindestbudget: number | null;
   empfohlenesMedienbudget: string | null;
   buchungsvoraussetzung: string | null;
+  buchungsschlussInfo?: string | null;
   /** Automatisierungen (Task-Vorlagen) für dieses Produkt aktiv */
   automatisierungAktiv?: boolean;
 };
@@ -118,6 +122,11 @@ function mapRow(row: Record<string, unknown>): Product {
     verlag: row.verlag != null ? String(row.verlag) : null,
     kanal: row.kanal != null ? String(row.kanal) : null,
     produktgruppe: row.produktgruppe != null ? String(row.produktgruppe) : null,
+    useCase: Array.isArray(row.use_case)
+      ? (row.use_case as unknown[]).filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+      : typeof row.use_case === "string"
+        ? row.use_case.split(",").map((v) => v.trim()).filter(Boolean)
+        : [],
     produktvarianteTitel: name ? String(name) : null,
     beispielBild: row.beispiel_bild != null ? String(row.beispiel_bild) : null,
     platzierung: row.platzierung != null ? String(row.platzierung) : null,
@@ -132,13 +141,15 @@ function mapRow(row: Record<string, unknown>): Product {
     creativeTyp: row.creative_typ != null ? String(row.creative_typ) : null,
     creativeDeadlineTage: row.creative_deadline_tage != null ? Number(row.creative_deadline_tage) : null,
     creativeDeadlineDate: row.creative_deadline_date != null ? String(row.creative_deadline_date) : null,
+    editionType: row.edition_type === "ga" ? "ga" : (row.edition_type === "na" ? "na" : null),
     laufzeitProEinheit: row.laufzeit_pro_einheit != null ? String(row.laufzeit_pro_einheit) : (row.duration != null ? String(row.duration) : null),
     preisBruttoChf: row.preis_brutto_chf != null ? Number(row.preis_brutto_chf) : null,
-    preisNettoChf: row.preis_netto_chf != null ? Number(row.preis_netto_chf) : (row.net_price != null ? Number(row.net_price) : null),
+    preisNettoChf: row.preis_netto_chf != null ? Number(row.preis_netto_chf) : null,
     preisAgenturservice: row.preis_agenturservice != null ? Number(row.preis_agenturservice) : null,
     mindestbudget: row.mindestbudget != null ? Number(row.mindestbudget) : (row.min_budget != null ? Number(row.min_budget) : null),
     empfohlenesMedienbudget: row.empfohlenes_medienbudget != null ? String(row.empfohlenes_medienbudget) : null,
     buchungsvoraussetzung: row.buchungsvoraussetzung != null ? String(row.buchungsvoraussetzung) : null,
+    buchungsschlussInfo: row.buchungsschluss_info != null ? String(row.buchungsschluss_info) : null,
     automatisierungAktiv: row.automatisierung_aktiv !== false,
   };
 }
@@ -389,6 +400,10 @@ function splitMultiValue(value: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
+function getUseCases(p: Product): string[] {
+  return (p.useCase ?? []).map((s) => s.trim()).filter(Boolean);
+}
+
 /** Levenshtein-Distanz (Anzahl Einfügen/Löschen/Ersetzen) */
 function levenshtein(a: string, b: string): number {
   const an = a.length;
@@ -457,6 +472,7 @@ function findSimilarProducts(
 }
 
 export default function ProduktePage() {
+  const filterListClass = "max-h-[17.5rem] space-y-1.5 overflow-y-auto pr-1";
   const router = useRouter();
   const searchParams = useSearchParams();
   const showArchived = searchParams.get("tab") === "archiv";
@@ -465,6 +481,7 @@ export default function ProduktePage() {
   const [filterKategorien, setFilterKategorien] = useState<string[]>([]);
   const [filterVerlage, setFilterVerlage] = useState<string[]>([]);
   const [filterKanal, setFilterKanal] = useState<string[]>([]);
+  const [filterUseCase, setFilterUseCase] = useState<string[]>([]);
   const [filterZielEignung, setFilterZielEignung] = useState<string[]>([]);
   const [filterLaufzeit, setFilterLaufzeit] = useState<string[]>([]);
   const BUDGET_MIN = 0;
@@ -662,6 +679,10 @@ export default function ProduktePage() {
       return false;
     if (filterKanal.length > 0 && (p.kanal == null || !filterKanal.includes(p.kanal)))
       return false;
+    if (filterUseCase.length > 0) {
+      const values = getUseCases(p);
+      if (!values.some((v) => filterUseCase.includes(v))) return false;
+    }
     if (filterZielEignung.length > 0) {
       const values = splitMultiValue(p.zielEignung);
       if (!values.some((v) => filterZielEignung.includes(v))) return false;
@@ -683,6 +704,7 @@ export default function ProduktePage() {
 
   const uniqueVerlage = uniqueSorted(visibleProducts.map((p) => p.verlag));
   const uniqueKanal = uniqueSorted(visibleProducts.map((p) => p.kanal));
+  const uniqueUseCase = uniqueSorted(visibleProducts.flatMap((p) => getUseCases(p)));
   const uniqueZielEignung = uniqueSorted(
     visibleProducts.flatMap((p) => splitMultiValue(p.zielEignung))
   );
@@ -693,9 +715,9 @@ export default function ProduktePage() {
   const displaySize = (p: Product) => p.creativeGroesse ?? "—";
   const displayDuration = (p: Product) => p.laufzeitProEinheit ?? "—";
   const displayNet = (p: Product) =>
-    p.preisNettoChf != null ? `CHF ${p.preisNettoChf}` : "—";
+    p.preisNettoChf != null ? formatChf(p.preisNettoChf) : "—";
   const displayMinBudget = (p: Product) =>
-    p.mindestbudget != null ? `CHF ${p.mindestbudget}` : "—";
+    p.mindestbudget != null ? formatChf(p.mindestbudget) : "—";
 
   return (
     <div className="flex gap-6 p-6">
@@ -703,7 +725,7 @@ export default function ProduktePage() {
         <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Filter</h3>
         <div>
           <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Kategorie</p>
-          <ul className="space-y-1.5">
+          <ul className={filterListClass}>
             {CATEGORIES.map((c) => (
               <li key={c} className="flex items-center gap-2">
                 <input
@@ -724,7 +746,7 @@ export default function ProduktePage() {
         {uniqueVerlage.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Verlag</p>
-            <ul className="space-y-1.5">
+            <ul className={filterListClass}>
               {uniqueVerlage.map((v) => (
                 <li key={v} className="flex items-center gap-2">
                   <input
@@ -748,7 +770,7 @@ export default function ProduktePage() {
           {uniqueKanal.length === 0 ? (
             <p className="text-xs text-zinc-500 dark:text-zinc-400">Keine Kanäle verfügbar.</p>
           ) : (
-            <ul className="space-y-1.5">
+            <ul className={filterListClass}>
               {uniqueKanal.map((k) => (
                 <li key={k} className="flex items-center gap-2">
                   <input
@@ -767,10 +789,32 @@ export default function ProduktePage() {
           )}
         </div>
 
+        {uniqueUseCase.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Use Case</p>
+            <ul className={filterListClass}>
+              {uniqueUseCase.map((u) => (
+                <li key={u} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`use-case-${u}`}
+                    checked={filterUseCase.includes(u)}
+                    onChange={() => toggleFilter(setFilterUseCase, u)}
+                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#3f3f46_40%)]"
+                  />
+                  <label htmlFor={`use-case-${u}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
+                    {u}
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {uniqueZielEignung.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Ziel-Eignung</p>
-            <ul className="space-y-1.5">
+            <ul className={filterListClass}>
               {uniqueZielEignung.map((z) => (
                 <li key={z} className="flex items-center gap-2">
                   <input
@@ -792,7 +836,7 @@ export default function ProduktePage() {
         {uniqueLaufzeit.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Laufzeit</p>
-            <ul className="space-y-1.5">
+            <ul className={filterListClass}>
               {uniqueLaufzeit.map((l) => (
                 <li key={l} className="flex items-center gap-2">
                   <input
@@ -851,7 +895,7 @@ export default function ProduktePage() {
               />
             </div>
           <p className="mt-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            CHF {budgetMin.toLocaleString("de-CH")} – CHF {budgetMax === BUDGET_MAX ? "10'000+" : budgetMax.toLocaleString("de-CH")}
+            {formatChf(budgetMin)} – {budgetMax === BUDGET_MAX ? <><span className="currency-prefix">CHF</span> 10&apos;000+</> : formatChf(budgetMax)}
           </p>
         </div>
 
@@ -1063,35 +1107,181 @@ export default function ProduktePage() {
                           <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
                             Verlag: {p.verlag ?? "—"} · Kanal: {p.kanal ?? "—"}
                           </p>
-                          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                            Platzierung: {p.platzierung ?? "—"}
-                          </p>
-                          <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <dt className="text-zinc-500 dark:text-zinc-400">Grösse</dt>
-                              <dd className="font-medium text-zinc-800 dark:text-zinc-200">
-                                {displaySize(p)}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt className="text-zinc-500 dark:text-zinc-400">Laufzeit</dt>
-                              <dd className="font-medium text-zinc-800 dark:text-zinc-200">
-                                {displayDuration(p)}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt className="text-zinc-500 dark:text-zinc-400">Preis Netto</dt>
-                              <dd className="font-medium text-zinc-800 dark:text-zinc-200">
-                                {displayNet(p)}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt className="text-zinc-500 dark:text-zinc-400">Mindestbudget</dt>
-                              <dd className="font-medium text-zinc-800 dark:text-zinc-200">
-                                {displayMinBudget(p)}
-                              </dd>
-                            </div>
-                          </dl>
+                          {cat === "PRINT" ? (
+                            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Erscheinungsweise</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {p.editionType === "ga" ? "wöchentlich" : p.editionType === "na" ? "täglich" : "—"}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Buchungsschluss</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {p.buchungsschlussInfo ?? "—"}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Preis Netto</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">{displayNet(p)}</dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Zusatzinformation</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {p.zusatzinformationen ?? "—"}
+                                </dd>
+                              </div>
+                            </dl>
+                          ) : cat === "Aussenwerbung" ? (
+                            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Grösse</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {displaySize(p)}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Laufzeit</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {displayDuration(p)}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Preis Netto</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {p.preisNettoChf != null ? displayNet(p) : "Auf Anfrage"}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Platzierung</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {p.platzierung ?? "—"}
+                                </dd>
+                              </div>
+                            </dl>
+                          ) : cat === "ONLINE" ? (
+                            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Einrichtungskosten*</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {p.preisAgenturservice != null ? formatChf(p.preisAgenturservice) : "—"}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Laufzeit</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {displayDuration(p)}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Preis Netto</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {p.preisNettoChf != null ? displayNet(p) : "—"}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Mindestbudget</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {displayMinBudget(p)}
+                                </dd>
+                              </div>
+                            </dl>
+                          ) : cat === "ÖV" ? (
+                            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Grösse</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {displaySize(p)}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Laufzeit</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {displayDuration(p)}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Preis Netto</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {p.preisNettoChf != null ? displayNet(p) : "Auf Anfrage"}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Platzierung</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {p.platzierung ?? "—"}
+                                </dd>
+                              </div>
+                            </dl>
+                          ) : cat === "KINO" ? (
+                            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Grösse</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {displaySize(p)}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Laufzeit</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {displayDuration(p)}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Preis Netto</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {p.preisNettoChf != null ? displayNet(p) : "Auf Anfrage"}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Platzierung</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {p.platzierung ?? "—"}
+                                </dd>
+                              </div>
+                            </dl>
+                          ) : cat === "HANDLING" ? (
+                            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <dt className="text-zinc-500 dark:text-zinc-400">Preis Netto</dt>
+                                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                  {p.preisNettoChf != null ? displayNet(p) : "—"}
+                                </dd>
+                              </div>
+                            </dl>
+                          ) : (
+                            <>
+                              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                                Platzierung: {p.platzierung ?? "—"}
+                              </p>
+                              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <dt className="text-zinc-500 dark:text-zinc-400">Grösse</dt>
+                                  <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                    {displaySize(p)}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="text-zinc-500 dark:text-zinc-400">Laufzeit</dt>
+                                  <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                    {displayDuration(p)}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="text-zinc-500 dark:text-zinc-400">Preis Netto</dt>
+                                  <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                    {displayNet(p)}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="text-zinc-500 dark:text-zinc-400">Mindestbudget</dt>
+                                  <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                                    {displayMinBudget(p)}
+                                  </dd>
+                                </div>
+                              </dl>
+                            </>
+                          )}
                         </article>
                       ))}
                     </div>

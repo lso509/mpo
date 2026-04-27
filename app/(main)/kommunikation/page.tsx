@@ -3,6 +3,17 @@
 import { useState } from "react";
 import { nochNichtImplementiert } from "@/lib/not-implemented";
 
+function renderCurrencyPrefix(text: string) {
+  const parts = text.split(/CHF(?=\s*\d)/g);
+  if (parts.length === 1) return text;
+  return parts.map((part, index) => (
+    <span key={`currency-part-${index}`}>
+      {index > 0 && <span className="currency-prefix">CHF</span>}
+      {part}
+    </span>
+  ));
+}
+
 const STATUS_BADGES = [
   { id: "ungelesen", label: "Ungelesen", count: 2 },
   { id: "aktion", label: "Aktion erforderlich", count: 4 },
@@ -21,8 +32,8 @@ const FEED_ITEMS = [
     from: "Thomas Müller (Salt Schweiz)",
     context: "Frühlingsaktion 2026 - Display Banner - Homepage Leaderboard",
     description:
-      "The budget of 62,500 CHF significantly exceeds our internal target. Can you reduce it to a maximum of 50,000 CHF? Perhaps by adjusting the quantity or a higher discount?",
-    details: "Aktueller Preis: 625 CHF · Vorgeschlagen: 500 CHF · Status: abgelehnt",
+      "The budget of CHF 62,500 significantly exceeds our internal target. Can you reduce it to a maximum of CHF 50,000? Perhaps by adjusting the quantity or a higher discount?",
+    details: "Aktueller Preis: CHF 625 · Vorgeschlagen: CHF 500 · Status: abgelehnt",
     time: "vor 19 Std",
     comments: 2,
   },
@@ -48,8 +59,8 @@ const FEED_ITEMS = [
     from: "Sie (Agentur) - UBS",
     context: "Sommerkampagne 2026 - Instagram Stories - Werbeanzeige",
     description:
-      'We have added a new "Instagram Stories - Advertisement" position. Budget: 36,000 CHF. Please review and approve.',
-    details: "Aktueller Preis: 360 CHF · Status: Freigabe ausstehend",
+      'We have added a new "Instagram Stories - Advertisement" position. Budget: CHF 36,000. Please review and approve.',
+    details: "Aktueller Preis: CHF 360 · Status: Freigabe ausstehend",
     time: "vor 1 Tag",
   },
   {
@@ -153,8 +164,8 @@ export default function KommunikationPage() {
             <p className="mt-1 text-sm text-zinc-600">
               {item.from} · {item.context}
             </p>
-            <p className="mt-2 text-sm text-zinc-700">{item.description}</p>
-            <p className="mt-2 text-xs text-zinc-500">{item.details}</p>
+            <p className="mt-2 text-sm text-zinc-700">{renderCurrencyPrefix(item.description)}</p>
+            <p className="mt-2 text-xs text-zinc-500">{renderCurrencyPrefix(item.details)}</p>
             <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
               <span>{item.time}</span>
               {item.comments != null && (

@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
 
 function formatChf(value: number): string {
   const formatted = Math.abs(value).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
-  return value < 0 ? `-${formatted}` : formatted;
+  return value < 0 ? `-CHF ${formatted}` : `CHF ${formatted}`;
 }
 
 function parseDate(s: string): number {

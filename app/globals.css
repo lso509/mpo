@@ -138,6 +138,16 @@ textarea {
   border-radius: 22px !important;
 }
 
+.currency-amount {
+  white-space: nowrap;
+}
+
+.currency-prefix {
+  font-size: 0.78em;
+  opacity: 0.65;
+  font-weight: 500;
+}
+
 /* Selects: Pfeil mit Abstand zum rechten Rand (weiter einrücken) */
 select {
   padding-right: 2.25rem !important;

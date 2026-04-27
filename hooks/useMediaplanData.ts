@@ -80,7 +80,7 @@ export function useMediaplanData(id: string) {
     const supabase = createClient();
     supabase
       .from("produkte")
-      .select("id, category, kategorie, name, produktvariante_titel, verlag, kanal, produktgruppe, platzierung, position, zusatzinformationen, ziel_eignung, creative_farbe, creative_dateityp, creative_groesse, creative_typ, creative_deadline_tage, creative_deadline_date, size, laufzeit_pro_einheit, preis_brutto_chf, preis_netto_chf, preis_agenturservice, empfohlenes_medienbudget, buchungsvoraussetzung, beispiel_bild, creative_groesse_einheit, waehrung")
+      .select("id, category, kategorie, name, produktvariante_titel, verlag, kanal, produktgruppe, platzierung, position, zusatzinformationen, ziel_eignung, creative_farbe, creative_dateityp, creative_groesse, creative_typ, creative_deadline_tage, creative_deadline_date, size, laufzeit_pro_einheit, preis_brutto_chf, preis_netto_chf, werbeabgabe_at, preis_agenturservice, empfohlenes_medienbudget, buchungsvoraussetzung, buchungsschluss_info, beispiel_bild, creative_groesse_einheit, waehrung")
       .in("id", ids)
       .then(({ data }) => {
         const map: Record<string, CatalogProduct> = {};

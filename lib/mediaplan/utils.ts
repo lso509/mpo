@@ -1,4 +1,5 @@
 import type { PositionRow } from "@/lib/mediaplan/types";
+import { createElement, type ReactNode } from "react";
 
 export function beraterInitials(email: string | undefined): string {
   if (!email) return "?";
@@ -7,11 +8,19 @@ export function beraterInitials(email: string | undefined): string {
   return part ? part.slice(0, 1).toUpperCase() : "?";
 }
 
-export function formatChf(n: number | null): string {
+export function formatChf(n: number | null): ReactNode {
   if (n == null) return "—";
-  return (
-    new Intl.NumberFormat("de-CH", { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) +
-    " CHF"
+  const amount = new Intl.NumberFormat("de-CH", {
+    style: "decimal",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+  return createElement(
+    "span",
+    { className: "currency-amount whitespace-nowrap" },
+    createElement("span", { className: "currency-prefix" }, "CHF"),
+    " ",
+    amount
   );
 }
 

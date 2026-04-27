@@ -7,9 +7,8 @@ import {
   DEFAULT_MM_TARIFFS,
   FUZZY_MATCH_THRESHOLDS,
   getDefaultTaskConfig,
-  KANAL_OPTIONS,
-  LAUFZEIT_OPTIONS,
   MM_TARIFF_CATEGORY_OPTIONS,
+  KANAL_OPTIONS,
   PRODUKTGRUPPE_OPTIONS,
   USE_CASE_OPTIONS,
   VERLAG_OPTIONS,
@@ -69,15 +68,19 @@ export function ProductForm({
   setFuzzyMatchThreshold,
   verlagOptions: verlagOptionsProp,
 }: ProductFormProps) {
-  const PRODUKTGRUPPE_STORAGE_KEY = "produkte.produktgruppe.options.v1";
+  const KANAL_PRODUKTGRUPPE_STORAGE_KEY = "produkte.kanal-produktgruppe.options.v1";
   const verlagOptionsList = (verlagOptionsProp?.length ? verlagOptionsProp : VERLAG_OPTIONS) as string[];
-  const [produktgruppeOptions, setProduktgruppeOptions] = useState<string[]>(() => {
-    if (typeof window === "undefined") return PRODUKTGRUPPE_OPTIONS;
+  const [kanalProduktgruppeOptions, setKanalProduktgruppeOptions] = useState<string[]>(() => {
+    const sortOptions = (values: string[]) =>
+      [...values].sort((a, b) => a.localeCompare(b, "de-CH", { sensitivity: "base" }));
+    const baseDefaults = Array.from(new Set([...KANAL_OPTIONS, ...PRODUKTGRUPPE_OPTIONS]));
+
+    if (typeof window === "undefined") return sortOptions(baseDefaults);
     try {
-      const raw = window.localStorage.getItem(PRODUKTGRUPPE_STORAGE_KEY);
-      if (!raw) return PRODUKTGRUPPE_OPTIONS;
+      const raw = window.localStorage.getItem(KANAL_PRODUKTGRUPPE_STORAGE_KEY);
+      if (!raw) return sortOptions(baseDefaults);
       const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed)) return PRODUKTGRUPPE_OPTIONS;
+      if (!Array.isArray(parsed)) return sortOptions(baseDefaults);
       const cleaned = Array.from(
         new Set(
           parsed
@@ -85,9 +88,9 @@ export function ProductForm({
             .filter(Boolean)
         )
       );
-      return cleaned.length > 0 ? cleaned : PRODUKTGRUPPE_OPTIONS;
+      return cleaned.length > 0 ? sortOptions(cleaned) : sortOptions(baseDefaults);
     } catch {
-      return PRODUKTGRUPPE_OPTIONS;
+      return sortOptions(baseDefaults);
     }
   });
   const [showProduktgruppeModal, setShowProduktgruppeModal] = useState(false);
@@ -102,8 +105,8 @@ export function ProductForm({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(PRODUKTGRUPPE_STORAGE_KEY, JSON.stringify(produktgruppeOptions));
-  }, [produktgruppeOptions]);
+    window.localStorage.setItem(KANAL_PRODUKTGRUPPE_STORAGE_KEY, JSON.stringify(kanalProduktgruppeOptions));
+  }, [kanalProduktgruppeOptions]);
 
   const addMmTariff = () => {
     setField("mmTariffs", [
@@ -236,29 +239,20 @@ export function ProductForm({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Kanal (Werbeform)</label>
-              <select
-                value={product.kanal ?? ""}
-                onChange={(e) => setField("kanal", e.target.value)}
-                className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
-              >
-                <option value="">—</option>
-                {KANAL_OPTIONS.map((k) => (
-                  <option key={k} value={k}>{k}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Produktgruppe</label>
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Kanal / Produktgruppe</label>
               <div className="mt-1 flex items-center gap-2">
                 <select
-                value={product.produktgruppe ?? ""}
-                  onChange={(e) => setField("produktgruppe", e.target.value || null)}
+                  value={product.produktgruppe ?? product.kanal ?? ""}
+                  onChange={(e) => {
+                    const value = e.target.value || null;
+                    setField("kanal", value);
+                    setField("produktgruppe", value);
+                  }}
                   className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
                 >
                   <option value="">—</option>
-                  {produktgruppeOptions.map((pg) => (
-                    <option key={pg} value={pg}>{pg}</option>
+                  {kanalProduktgruppeOptions.map((option) => (
+                    <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
                 <button
@@ -272,15 +266,28 @@ export function ProductForm({
             </div>
             {isPerMm && (
               <div>
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Auflagentyp</label>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Erscheinungsweise</label>
                 <select
                   value={product.editionType ?? "na"}
                   onChange={(e) => setField("editionType", e.target.value as "na" | "ga")}
                   className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
                 >
-                  <option value="na">Normalauflage (NA)</option>
-                  <option value="ga">Grossauflage (GA)</option>
+                  <option value="na">täglich</option>
+                  <option value="ga">wöchentlich</option>
                 </select>
+              </div>
+            )}
+            {isPerMm && (
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Auflage</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={product.auflage ?? ""}
+                  onChange={(e) => setField("auflage", e.target.value === "" ? null : parseInt(e.target.value, 10))}
+                  className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+                />
               </div>
             )}
             <div className="sm:col-span-2">
@@ -480,16 +487,26 @@ export function ProductForm({
               </select>
             </div>
             <div>
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Werbeabgabe Österreich</label>
+              <label className="mt-1 flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-600 bg-transparent px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200">
+                <input
+                  type="checkbox"
+                  checked={product.werbeabgabeAt === true}
+                  onChange={(e) => setField("werbeabgabeAt", e.target.checked)}
+                  className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#3f3f46_40%)]"
+                />
+                <span>5% Werbeabgabe (AT) auf Preise aufschlagen</span>
+              </label>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Laufzeit pro Einheit</label>
-              <select
+              <input
+                type="text"
                 value={product.laufzeitProEinheit ?? ""}
                 onChange={(e) => setField("laufzeitProEinheit", e.target.value)}
                 className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
-              >
-                {LAUFZEIT_OPTIONS.map((l) => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
-              </select>
+                placeholder="z. B. 1 Woche, 10 Tage, pro Ausgabe"
+              />
             </div>
             {!isPerMm && (
               <>
@@ -535,6 +552,20 @@ export function ProductForm({
                     <span className="flex items-center rounded-r-full bg-zinc-100 dark:bg-zinc-700 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">{product.waehrung ?? "CHF"}</span>
                   </div>
                 </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Agenturmarge (%)</label>
+                  <div className="mt-1 flex rounded-full border border-zinc-200 dark:border-zinc-600 overflow-hidden">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={product.agenturMargeProzent ?? ""}
+                      onChange={(e) => setField("agenturMargeProzent", e.target.value === "" ? null : parseFloat(e.target.value))}
+                      className="min-w-0 flex-1 rounded-l-full border-0 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:ring-2 focus:ring-[#FF6554]"
+                    />
+                    <span className="flex items-center rounded-r-full bg-zinc-100 dark:bg-zinc-700 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">%</span>
+                  </div>
+                </div>
               </>
             )}
             <div>
@@ -575,13 +606,22 @@ export function ProductForm({
                 className="mt-1 w-full rounded-3xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
               />
             </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Info zum Buchungsschluss</label>
+              <textarea
+                value={product.buchungsschlussInfo ?? ""}
+                onChange={(e) => setField("buchungsschlussInfo", e.target.value)}
+                rows={2}
+                className="mt-1 w-full rounded-3xl border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+              />
+            </div>
           </div>
         </section>
 
         {isPerMm && (
           <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Tarifstruktur</h4>
+              <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Tarife Individualformat</h4>
               <button
                 type="button"
                 onClick={addMmTariff}
@@ -592,7 +632,7 @@ export function ProductForm({
             </div>
             {mmTariffs.length === 0 ? (
               <p className="text-sm text-amber-700 dark:text-amber-300">
-                Mindestens eine Tarifzeile ist für Individualformate erforderlich.
+                Keine mm-Tarifzeilen hinterlegt. Falls nur Fixformate verwendet werden, kann das Feld leer bleiben.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -602,7 +642,7 @@ export function ProductForm({
                       <th className="px-2">Rubrik/Kategorie</th>
                       <th className="px-2">mm-Preis NA</th>
                       <th className="px-2">mm-Preis GA</th>
-                      <th className="px-2">Spaltenraster (mm)</th>
+                      <th className="px-2">Spaltenraster (Optionen in mm)</th>
                       <th className="w-12 px-2" />
                     </tr>
                   </thead>
@@ -654,7 +694,7 @@ export function ProductForm({
                                   .filter((n) => !Number.isNaN(n) && n > 0),
                               })
                             }
-                            placeholder="z.B. 27, 56, 86"
+                            placeholder="z.B. 27, 56, 86, 115, 144, 174, 203, 232, 291"
                             className="w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5"
                           />
                         </td>
@@ -673,13 +713,16 @@ export function ProductForm({
                 </table>
               </div>
             )}
+            <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+              Die konkrete Auswahl (Spalten/Höhe) und Preisberechnung erfolgt später im Mediaplan.
+            </p>
           </section>
         )}
 
         {isPerMm && (
           <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Fixformate (optional)</h4>
+              <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Tarife Fixformate</h4>
               <button
                 type="button"
                 onClick={addFixedFormat}
@@ -994,20 +1037,20 @@ export function ProductForm({
             className="w-full max-w-lg rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h5 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Produktgruppen verwalten</h5>
+            <h5 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Kanal / Produktgruppe verwalten</h5>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
               Einträge hinzufügen, bearbeiten oder entfernen.
             </p>
 
             <div className="mt-4 space-y-2 max-h-72 overflow-y-auto">
-              {produktgruppeOptions.map((option, idx) => (
+              {kanalProduktgruppeOptions.map((option, idx) => (
                 <div key={`${option}-${idx}`} className="flex items-center gap-2">
                   <input
                     type="text"
                     value={option}
                     onChange={(e) => {
                       const value = e.target.value;
-                      setProduktgruppeOptions((prev) =>
+                      setKanalProduktgruppeOptions((prev) =>
                         prev.map((x, i) => (i === idx ? value : x))
                       );
                     }}
@@ -1017,8 +1060,9 @@ export function ProductForm({
                     type="button"
                     onClick={() => {
                       const toRemove = option;
-                      setProduktgruppeOptions((prev) => prev.filter((_, i) => i !== idx));
-                      if ((product.produktgruppe ?? "") === toRemove) {
+                      setKanalProduktgruppeOptions((prev) => prev.filter((_, i) => i !== idx));
+                      if ((product.produktgruppe ?? "") === toRemove || (product.kanal ?? "") === toRemove) {
+                        setField("kanal", null);
                         setField("produktgruppe", null);
                       }
                     }}
@@ -1043,10 +1087,12 @@ export function ProductForm({
                 onClick={() => {
                   const value = newProduktgruppe.trim();
                   if (!value) return;
-                  if (produktgruppeOptions.some((x) => x.trim().toLowerCase() === value.toLowerCase())) {
+                  if (kanalProduktgruppeOptions.some((x) => x.trim().toLowerCase() === value.toLowerCase())) {
                     return;
                   }
-                  setProduktgruppeOptions((prev) => [...prev, value]);
+                  setKanalProduktgruppeOptions((prev) =>
+                    [...prev, value].sort((a, b) => a.localeCompare(b, "de-CH", { sensitivity: "base" }))
+                  );
                   setNewProduktgruppe("");
                 }}
                 className="shrink-0 rounded-full bg-[#FF6554] px-3 py-2 text-xs font-medium text-white hover:bg-[#e55a4a]"
@@ -1061,13 +1107,17 @@ export function ProductForm({
                 onClick={() => {
                   const cleaned = Array.from(
                     new Set(
-                      produktgruppeOptions
+                      kanalProduktgruppeOptions
                         .map((x) => x.trim())
                         .filter(Boolean)
                     )
-                  );
-                  setProduktgruppeOptions(cleaned);
-                  if (product.produktgruppe && !cleaned.includes(product.produktgruppe)) {
+                  ).sort((a, b) => a.localeCompare(b, "de-CH", { sensitivity: "base" }));
+                  setKanalProduktgruppeOptions(cleaned);
+                  if (
+                    (product.produktgruppe && !cleaned.includes(product.produktgruppe)) ||
+                    (product.kanal && !cleaned.includes(product.kanal))
+                  ) {
+                    setField("kanal", null);
                     setField("produktgruppe", null);
                   }
                   setShowProduktgruppeModal(false);

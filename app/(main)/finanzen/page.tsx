@@ -4,6 +4,17 @@ import { useState } from "react";
 import Link from "next/link";
 import { nochNichtImplementiert } from "@/lib/not-implemented";
 
+function renderCurrencyPrefix(text: string) {
+  const parts = text.split(/CHF(?=\s*\d)/g);
+  if (parts.length === 1) return text;
+  return parts.map((part, index) => (
+    <span key={`currency-part-${index}`}>
+      {index > 0 && <span className="currency-prefix">CHF</span>}
+      {part}
+    </span>
+  ));
+}
+
 const TABS = [
   { id: "dashboard", label: "Dashboard" },
   { id: "ausgangsrechnungen", label: "Ausgangsrechnungen (4)" },
@@ -155,7 +166,7 @@ export default function FinanzenPage() {
                     </p>
                     {(kpi.amount ?? kpi.sub) != null && (
                       <p className="mt-0.5 text-xs text-zinc-500">
-                        {kpi.amount ?? kpi.sub}
+                        {kpi.amount ? renderCurrencyPrefix(kpi.amount) : kpi.sub}
                       </p>
                     )}
                   </div>
@@ -190,7 +201,7 @@ export default function FinanzenPage() {
                     <p className="font-medium text-zinc-950">{b.title}</p>
                     <p className="text-sm text-zinc-600">{b.client}</p>
                     <p className="text-xs text-zinc-500">{b.approved}</p>
-                    <p className="font-semibold text-zinc-950">{b.amount}</p>
+                    <p className="font-semibold text-zinc-950">{renderCurrencyPrefix(b.amount)}</p>
                   </li>
                 ))}
               </ul>
@@ -217,10 +228,10 @@ export default function FinanzenPage() {
                     <p className="font-medium text-zinc-950">
                       {inv.ref} - {inv.context}
                     </p>
-                    <p className="text-sm text-zinc-600">{inv.expected}</p>
+                    <p className="text-sm text-zinc-600">{renderCurrencyPrefix(inv.expected)}</p>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-zinc-950">
-                        Rechnung: {inv.invoice}
+                        Rechnung: {renderCurrencyPrefix(inv.invoice)}
                       </span>
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -232,7 +243,7 @@ export default function FinanzenPage() {
                         {inv.tag}
                       </span>
                     </div>
-                    <p className="text-xs text-amber-700">⚠ {inv.diff}</p>
+                    <p className="text-xs text-amber-700">⚠ {renderCurrencyPrefix(inv.diff)}</p>
                   </li>
                 ))}
               </ul>

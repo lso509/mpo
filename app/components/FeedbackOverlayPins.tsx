@@ -36,12 +36,16 @@ type OverlayFeedback = {
 };
 
 export function FeedbackOverlayPins() {
+  const POPOVER_WIDTH_PX = 368; // entspricht w-[23rem]
+  const POPOVER_EDGE_PADDING_PX = 16;
+  const POPOVER_APPROX_HEIGHT_PX = 360;
+
   const { user } = useUser();
   const pathname = usePathname();
   const scrollContainerRef = useScrollContainer();
   const [items, setItems] = useState<OverlayFeedback[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
-  const pinRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const pinItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [contentSize, setContentSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [commentsByFeedback, setCommentsByFeedback] = useState<Record<string, FeedbackKommentar[]>>({});
   const [commentDraftByFeedback, setCommentDraftByFeedback] = useState<Record<string, string>>({});
@@ -138,12 +142,13 @@ export function FeedbackOverlayPins() {
 
   useEffect(() => {
     if (openId === null) return;
-    const onDocClick = (e: MouseEvent) => {
-      const btn = pinRefs.current[openId];
-      if (btn && !btn.contains(e.target as Node)) setOpenId(null);
+    const onOutside = (e: MouseEvent) => {
+      const item = pinItemRefs.current[openId];
+      if (item && item.contains(e.target as Node)) return;
+      setOpenId(null);
     };
-    document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
   }, [openId]);
 
   const handleStartEdit = useCallback((entry: OverlayFeedback) => {
@@ -218,13 +223,30 @@ export function FeedbackOverlayPins() {
 
   return (
     <div
-      className="pointer-events-none absolute left-0 top-0 z-10"
+      className="pointer-events-none absolute left-0 top-0 z-[80]"
       style={{ width: `${contentSize.w}px`, height: `${contentSize.h}px` }}
     >
       {positioned.map((e) => (
+        (() => {
+          const nearLeftEdge = e.leftPx < POPOVER_WIDTH_PX / 2 + POPOVER_EDGE_PADDING_PX;
+          const nearRightEdge = contentSize.w - e.leftPx < POPOVER_WIDTH_PX / 2 + POPOVER_EDGE_PADDING_PX;
+          const nearTopEdge = e.topPx < POPOVER_APPROX_HEIGHT_PX + POPOVER_EDGE_PADDING_PX;
+          const popoverPositionClass = nearLeftEdge
+            ? "left-0 -translate-x-0"
+            : nearRightEdge
+              ? "right-0 left-auto translate-x-0"
+              : "left-1/2 -translate-x-1/2";
+          const popoverVerticalClass = nearTopEdge
+            ? "top-full mt-2 translate-y-0"
+            : "top-0 mt-1 -translate-y-full";
+
+          return (
         <div
           key={e.id}
           id={`feedback-${e.id}`}
+          ref={(el) => {
+            pinItemRefs.current[e.id] = el;
+          }}
           className="absolute -translate-x-1/2 -translate-y-full pointer-events-auto"
           style={{
             left: `${e.leftPx}px`,
@@ -232,9 +254,6 @@ export function FeedbackOverlayPins() {
           }}
         >
           <button
-            ref={(el) => {
-              pinRefs.current[e.id] = el;
-            }}
             type="button"
             onClick={(ev) => {
               ev.stopPropagation();
@@ -253,7 +272,8 @@ export function FeedbackOverlayPins() {
           </button>
           {openId === e.id && (
             <div
-              className="absolute left-1/2 top-0 z-10 mt-1 w-[23rem] -translate-x-1/2 -translate-y-full rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white p-3 shadow-xl dark:bg-zinc-800"
+              className={`absolute z-[130] w-[23rem] rounded-xl border border-zinc-200 dark:border-zinc-600 bg-white p-3 shadow-xl dark:bg-zinc-800 ${popoverPositionClass} ${popoverVerticalClass}`}
+              onMouseDown={(ev) => ev.stopPropagation()}
               onClick={(ev) => ev.stopPropagation()}
             >
               <div className="flex flex-wrap items-center gap-1.5">
@@ -408,6 +428,8 @@ export function FeedbackOverlayPins() {
             </div>
           )}
         </div>
+          );
+        })()
       ))}
     </div>
   );

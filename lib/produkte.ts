@@ -2,13 +2,13 @@
 
 export const CATEGORIES = [
   "Aussenwerbung",
+  "CUSTOM",
+  "HANDLING",
   "KINO",
+  "ONLINE",
   "ÖV",
   "PRINT",
-  "ONLINE",
-  "HANDLING",
   "SERVICES",
-  "CUSTOM",
 ];
 
 export function categoryLabel(category: string): string {
@@ -35,57 +35,65 @@ export const VERLAG_OPTIONS = [
 
 /** Optionen für das Kanal-Dropdown (Werbeform). */
 export const KANAL_OPTIONS = [
-  "Plakat",
-  "LED Screen",
   "Buswerbung",
-  "Online Bannerwerbung",
+  "Buswerbung-FL",
   "Google Suchanzeigen",
-  "Online In-Read Werbung",
-  "Print Inserat",
-  "Sponsoring",
-  "Screen-FL",
-  "Screen-CH",
-  "Screen-AT",
-  "Plakate-AT",
-  "Plakate-FL/CH",
-  "Plakate-FL",
-  "Plakate",
-  "Kino-FL + CH",
+  "Handling",
   "Kino AT",
   "Kino FL",
-  "Buswerbung-FL",
+  "Kino-FL + CH",
+  "LED Screen",
+  "Online",
+  "Online Bannerwerbung",
+  "Online In-Read Werbung",
+  "Plakat",
+  "Plakate",
+  "Plakate-AT",
+  "Plakate-FL",
+  "Plakate-FL/CH",
+  "Print Inserat",
+  "Print-AT",
   "Print-FL",
   "Print-FL/CH",
-  "Print-AT",
-  "Online",
-  "Handling",
+  "Screen-AT",
+  "Screen-CH",
+  "Screen-FL",
+  "Sponsoring",
+  "Stellenportale",
 ];
 
 /** Optionen für das Produktgruppe-Dropdown. */
 export const PRODUKTGRUPPE_OPTIONS = [
-  "Liewo",
-  "Vaterland",
-  "Wirtschaft Regional",
-  "Screen-FL",
-  "Screen-CH",
-  "Screen-AT",
-  "Plakate-AT",
-  "Plakate-FL/CH",
-  "Plakate-FL",
-  "Plakate",
-  "Kino-FL + CH",
+  "Buswerbung-FL",
+  "Handling",
   "Kino AT",
   "Kino FL",
-  "Buswerbung-FL",
+  "Kino-FL + CH",
+  "Liewo",
+  "Online",
+  "Plakate",
+  "Plakate-AT",
+  "Plakate-FL",
+  "Plakate-FL/CH",
+  "Print-AT",
   "Print-FL",
   "Print-FL/CH",
-  "Print-AT",
-  "Online",
-  "Handling",
+  "Screen-AT",
+  "Screen-CH",
+  "Screen-FL",
+  "Vaterland",
+  "Wirtschaft Regional",
 ];
 
 /** Optionen für Use Case (Mehrfachauswahl). */
-export const USE_CASE_OPTIONS = ["Event", "Employer Branding", "Recruiting"] as const;
+export const USE_CASE_OPTIONS = [
+  "Event",
+  "Employer Branding",
+  "Recruiting",
+  "Banking",
+  "Berufswahl",
+  "B2B",
+] as const;
 export type UseCaseOption = (typeof USE_CASE_OPTIONS)[number];
 
 export const ZIEL_EIGNUNG_OPTIONS = ["Sichtbarkeit", "Traffic", "Conversion", "Sonstige"];
@@ -161,11 +169,13 @@ export type Product = {
   creativeGroesse: string | null;
   creativeGroesseEinheit: "px" | "mm" | "cm" | null;
   waehrung: "CHF" | "EUR" | null;
+  werbeabgabeAt: boolean;
   creativeTyp: string | null;
   creativeDeadlineTage: number | null;
   creativeDeadlineDate: string | null;
   pricingType: "fixed" | "per_mm";
   editionType: "na" | "ga";
+  auflage: number | null;
   minCharge: number | null;
   mmTariffs: ProductMmTariff[];
   fixedFormats: ProductFixedFormat[];
@@ -173,9 +183,11 @@ export type Product = {
   preisBruttoChf: number | null;
   preisNettoChf: number | null;
   preisAgenturservice: number | null;
+  agenturMargeProzent: number | null;
   mindestbudget: number | null;
   empfohlenesMedienbudget: string | null;
   buchungsvoraussetzung: string | null;
+  buchungsschlussInfo: string | null;
   automatisierungAktiv?: boolean;
 };
 
@@ -274,21 +286,25 @@ export function mapRow(row: Record<string, unknown>): Product {
     creativeGroesse: row.creative_groesse != null ? String(row.creative_groesse) : (row.size != null ? String(row.size) : null),
     creativeGroesseEinheit: (row.creative_groesse_einheit === "mm" || row.creative_groesse_einheit === "cm") ? row.creative_groesse_einheit : "px",
     waehrung: row.waehrung === "EUR" ? "EUR" : "CHF",
+    werbeabgabeAt: row.werbeabgabe_at === true,
     creativeTyp: row.creative_typ != null ? String(row.creative_typ) : null,
     creativeDeadlineTage: row.creative_deadline_tage != null ? Number(row.creative_deadline_tage) : null,
     creativeDeadlineDate: row.creative_deadline_date != null ? String(row.creative_deadline_date) : null,
     pricingType: row.pricing_type === "per_mm" ? "per_mm" : "fixed",
     editionType: row.edition_type === "ga" ? "ga" : "na",
+    auflage: row.auflage != null ? Number(row.auflage) : null,
     minCharge: row.min_charge != null ? Number(row.min_charge) : null,
     mmTariffs: [],
     fixedFormats: [],
     laufzeitProEinheit: row.laufzeit_pro_einheit != null ? String(row.laufzeit_pro_einheit) : (row.duration != null ? String(row.duration) : null),
     preisBruttoChf: row.preis_brutto_chf != null ? Number(row.preis_brutto_chf) : null,
-    preisNettoChf: row.preis_netto_chf != null ? Number(row.preis_netto_chf) : (row.net_price != null ? Number(row.net_price) : null),
+    preisNettoChf: row.preis_netto_chf != null ? Number(row.preis_netto_chf) : null,
     preisAgenturservice: row.preis_agenturservice != null ? Number(row.preis_agenturservice) : null,
+    agenturMargeProzent: row.agentur_marge_prozent != null ? Number(row.agentur_marge_prozent) : null,
     mindestbudget: row.mindestbudget != null ? Number(row.mindestbudget) : (row.min_budget != null ? Number(row.min_budget) : null),
     empfohlenesMedienbudget: row.empfohlenes_medienbudget != null ? String(row.empfohlenes_medienbudget) : null,
     buchungsvoraussetzung: row.buchungsvoraussetzung != null ? String(row.buchungsvoraussetzung) : null,
+    buchungsschlussInfo: row.buchungsschluss_info != null ? String(row.buchungsschluss_info) : null,
     automatisierungAktiv: row.automatisierung_aktiv !== false,
   };
 }
@@ -317,19 +333,23 @@ export function productToRow(p: Partial<Product>): Record<string, unknown> {
     creative_groesse: p.creativeGroesse ?? null,
     creative_groesse_einheit: p.creativeGroesseEinheit ?? "px",
     waehrung: p.waehrung ?? "CHF",
+    werbeabgabe_at: p.werbeabgabeAt === true,
     creative_typ: p.creativeTyp ?? null,
     creative_deadline_tage: p.creativeDeadlineTage ?? null,
     creative_deadline_date: p.creativeDeadlineDate ?? null,
     pricing_type: p.pricingType ?? "fixed",
     edition_type: p.editionType ?? "na",
+    auflage: p.auflage ?? null,
     min_charge: p.minCharge ?? null,
     laufzeit_pro_einheit: p.laufzeitProEinheit ?? null,
     preis_brutto_chf: p.preisBruttoChf ?? null,
     preis_netto_chf: p.preisNettoChf ?? null,
     preis_agenturservice: p.preisAgenturservice ?? null,
+    agentur_marge_prozent: p.agenturMargeProzent ?? null,
     mindestbudget: p.mindestbudget ?? null,
     empfohlenes_medienbudget: p.empfohlenesMedienbudget ?? null,
     buchungsvoraussetzung: p.buchungsvoraussetzung ?? null,
+    buchungsschluss_info: p.buchungsschlussInfo ?? null,
     automatisierung_aktiv: p.automatisierungAktiv !== false,
     spec: p.platzierung ?? null,
     placement: p.platzierung ?? null,
@@ -354,19 +374,23 @@ const CHANGELOG_FIELDS: Record<string, string> = {
   preis_brutto_chf: "Preis Brutto CHF",
   preis_netto_chf: "Preis Netto CHF",
   preis_agenturservice: "Preis Agenturservice",
+  agentur_marge_prozent: "Agenturmarge (%)",
   mindestbudget: "Mindestbudget",
   creative_deadline_date: "Creative Deadline (Datum)",
   creative_deadline_tage: "Creative Deadline (Tage)",
+  werbeabgabe_at: "Werbeabgabe AT (5%)",
   pricing_type: "Produkttyp",
-  edition_type: "Auflagentyp",
+  edition_type: "Erscheinungsweise",
+  auflage: "Auflage",
   min_charge: "Mindestverrechnung",
   zusatzinformationen: "Zusatzinformationen",
   buchungsvoraussetzung: "Buchungsvoraussetzung",
+  buchungsschluss_info: "Info zum Buchungsschluss",
   empfohlenes_medienbudget: "Empfohlenes Medienbudget",
 };
 
 const NUMERIC_CHANGELOG_KEYS = new Set([
-  "preis_brutto_chf", "preis_netto_chf", "preis_agenturservice", "mindestbudget", "creative_deadline_tage", "min_charge",
+  "preis_brutto_chf", "preis_netto_chf", "preis_agenturservice", "agentur_marge_prozent", "mindestbudget", "creative_deadline_tage", "min_charge",
 ]);
 
 function normalizeForCompare(key: string, val: unknown): string {
@@ -415,11 +439,13 @@ export const emptyProduct: Partial<Product> = {
   creativeGroesse: null,
   creativeGroesseEinheit: "px",
   waehrung: "CHF",
+  werbeabgabeAt: false,
   creativeTyp: null,
   creativeDeadlineTage: null,
   creativeDeadlineDate: null,
   pricingType: "fixed",
   editionType: "na",
+  auflage: null,
   minCharge: null,
   mmTariffs: DEFAULT_MM_TARIFFS.map((row) => ({ ...row, columnWidths: [...row.columnWidths] })),
   fixedFormats: [],
@@ -427,9 +453,11 @@ export const emptyProduct: Partial<Product> = {
   preisBruttoChf: null,
   preisNettoChf: null,
   preisAgenturservice: null,
+  agenturMargeProzent: null,
   mindestbudget: null,
   empfohlenesMedienbudget: null,
   buchungsvoraussetzung: null,
+  buchungsschlussInfo: null,
   automatisierungAktiv: true,
 };
 

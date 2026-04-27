@@ -277,10 +277,6 @@ export default function ProduktBearbeitenPage() {
 
   async function handleSave(asNewVariant: boolean, overwrite: boolean, forceCreate?: boolean) {
       if (!product) return;
-      if (product.pricingType === "per_mm" && (product.mmTariffs?.length ?? 0) === 0) {
-        setError("Individualformat benötigt mindestens eine Tarifzeile.");
-        return;
-      }
       setSaving(true);
       setError(null);
       const supabase = createClient();

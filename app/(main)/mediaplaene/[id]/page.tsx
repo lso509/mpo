@@ -23,6 +23,7 @@ import { PositionCatalogInfo } from "@/components/mediaplan/PositionCatalogInfo"
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 type AgencyUser = {
@@ -71,6 +72,8 @@ type ProductRow = {
   ziel_eignung: string | null;
   preis_brutto_chf: number | null;
   preis_netto_chf: number | null;
+  agentur_marge_prozent: number | null;
+  werbeabgabe_at: boolean | null;
   category: string | null;
 };
 
@@ -86,6 +89,21 @@ function formatDateInput(v: string | null): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function parseDecimalInput(v: string): number | null {
+  if (v === "") return null;
+  const n = Number(v.replace(/\s/g, "").replace(/'/g, "").replace(",", "."));
+  return Number.isNaN(n) ? null : n;
+}
+
+function roundCurrency(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function normalizePositionCategory(value: string | null | undefined): string | null {
+  const cleaned = (value ?? "").trim();
+  return cleaned.length > 0 ? cleaned : null;
 }
 
 type KundendetailsPayload = {
@@ -107,6 +125,7 @@ type KundendetailsPayload = {
   rabatt_agentur_prozent?: number | null;
   agenturgebuehr?: number | null;
   kundenpreis?: number | null;
+  position_kategorie?: string | null;
 };
 
 function PositionListItem({
@@ -129,7 +148,7 @@ function PositionListItem({
   product: CatalogProduct | null;
   selected: boolean;
   onToggleSelect: () => void;
-  formatChf: (n: number | null) => string;
+  formatChf: (n: number | null) => ReactNode;
   formatDateRange: (start: string | null, end: string | null) => string;
   formatDateInput: (v: string | null) => string;
   onDelete: () => void;
@@ -192,6 +211,23 @@ function PositionListItem({
 
   const update = (key: keyof typeof form, value: string) => setForm((f) => ({ ...f, [key]: value }));
 
+  const bruttoInput = parseDecimalInput(form.brutto);
+  const berechnungsbasisBrutto = bruttoInput ?? 0;
+  const rabattVerlagProzent = Math.max(0, parseDecimalInput(form.rabatt_prozent) ?? 0);
+  const agenturgebuehrInput = parseDecimalInput(form.agenturgebuehr);
+  const agenturgebuehrBasis = Math.max(0, agenturgebuehrInput ?? 0);
+  const rabattAgenturProzent = Math.max(0, parseDecimalInput(form.rabatt_agentur_prozent) ?? 0);
+  const bruttoNachRabatt = roundCurrency(
+    berechnungsbasisBrutto * (1 - Math.min(rabattVerlagProzent, 100) / 100)
+  );
+  const agenturgebuehrNachRabatt = roundCurrency(
+    agenturgebuehrBasis * (1 - Math.min(rabattAgenturProzent, 100) / 100)
+  );
+  const hasPreisBasis = bruttoInput != null || agenturgebuehrInput != null;
+  const berechneterKundenpreis = hasPreisBasis
+    ? roundCurrency(bruttoNachRabatt + agenturgebuehrNachRabatt)
+    : null;
+
   const prozessStatusFromPos: Record<string, string> =
     typeof pos.prozess_status === "object" && pos.prozess_status !== null
       ? Object.fromEntries(
@@ -241,11 +277,11 @@ function PositionListItem({
 
   const handleSaveDetails = async () => {
     setSaving(true);
-    const num = (v: string) => {
-      if (v === "") return null;
-      const n = Number(v.replace(/\s/g, "").replace(/'/g, "").replace(",", "."));
-      return Number.isNaN(n) ? null : n;
-    };
+    const rabattProzentValue = parseDecimalInput(form.rabatt_prozent);
+    const rabattTextAuto =
+      rabattProzentValue != null && rabattProzentValue > 0
+        ? `-${roundCurrency(rabattProzentValue)}%`
+        : null;
     await onUpdateDetails({
       kampagnenname: form.kampagnenname || null,
       ziel: form.ziel || null,
@@ -255,16 +291,16 @@ function PositionListItem({
       end_date: form.end_date || null,
       creative_deadline: form.creative_deadline || null,
       menge_volumen: form.menge_volumen || null,
-      anzahl_einheiten: num(form.anzahl_einheiten),
+      anzahl_einheiten: parseDecimalInput(form.anzahl_einheiten),
       werberadius: form.werberadius || null,
       zielgruppeninformationen: form.zielgruppeninformationen || null,
       zusatzinformationen_kunde: form.zusatzinformationen_kunde || null,
-      brutto: num(form.brutto),
-      discount_text: form.discount_text || null,
-      rabatt_prozent: num(form.rabatt_prozent),
-      rabatt_agentur_prozent: num(form.rabatt_agentur_prozent),
-      agenturgebuehr: num(form.agenturgebuehr),
-      kundenpreis: num(form.kundenpreis),
+      brutto: parseDecimalInput(form.brutto),
+      discount_text: form.discount_text || rabattTextAuto,
+      rabatt_prozent: rabattProzentValue,
+      rabatt_agentur_prozent: parseDecimalInput(form.rabatt_agentur_prozent),
+      agenturgebuehr: parseDecimalInput(form.agenturgebuehr),
+      kundenpreis: berechneterKundenpreis,
     });
     setSaving(false);
     setEditDetails(false);
@@ -288,7 +324,7 @@ function PositionListItem({
             setExpanded((x) => !x);
           }
         }}
-        className="flex cursor-pointer flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/80"
+        className="flex cursor-pointer flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/80"
       >
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <input
@@ -329,8 +365,6 @@ function PositionListItem({
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <div className="text-right text-sm">
-            {pos.brutto != null && <p className="text-zinc-500 dark:text-zinc-400">Brutto {formatChf(pos.brutto)}</p>}
-            {pos.discount_text && <p className="text-zinc-500 dark:text-zinc-400">{pos.discount_text}</p>}
             <p className="font-semibold text-zinc-950 dark:text-zinc-100">
               Kundenpreis {formatChf(pos.kundenpreis)}
             </p>
@@ -696,7 +730,16 @@ function PositionListItem({
                     </label>
                     <label className="block">
                       <span className="block text-xs text-zinc-500 dark:text-zinc-400 font-medium">Kundenpreis Gesamt CHF</span>
-                      <input type="text" inputMode="decimal" value={form.kundenpreis} onChange={(e) => update("kundenpreis", e.target.value)} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100 font-medium" />
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={berechneterKundenpreis == null ? "" : String(berechneterKundenpreis)}
+                        readOnly
+                        className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-700/50 px-2 py-1.5 text-zinc-900 dark:text-zinc-100 font-medium"
+                      />
+                      <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                        Berechnung: Brutto nach Rabatt + Agenturgebühr nach Rabatt
+                      </p>
                     </label>
                   </div>
                 </div>
@@ -726,6 +769,12 @@ function PositionListItem({
 }
 
 export default function MediaplanDetailPage() {
+  const withAtAdLevy = (amount: number | null, enabled: boolean): number | null => {
+    if (amount == null) return null;
+    if (!enabled) return amount;
+    return Math.round(amount * 1.05 * 100) / 100;
+  };
+
   const params = useParams();
   const planId = params.id as string;
   const {
@@ -751,6 +800,9 @@ export default function MediaplanDetailPage() {
   const [productSearch, setProductSearch] = useState("");
   const [adding, setAdding] = useState(false);
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
+  const [bulkCategoryValue, setBulkCategoryValue] = useState("");
+  const [newCategoryDraft, setNewCategoryDraft] = useState("");
+  const [customCategoryOptions, setCustomCategoryOptions] = useState<string[]>([]);
   const [editPlanInfo, setEditPlanInfo] = useState(false);
   const [editKundenberater, setEditKundenberater] = useState(false);
   const [planForm, setPlanForm] = useState<MediaplanDetailFormState>({
@@ -779,6 +831,40 @@ export default function MediaplanDetailPage() {
   const [agencyUsers, setAgencyUsers] = useState<AgencyUser[]>([]);
   const [statusConfirm, setStatusConfirm] = useState<"Aktiv" | "Entwurf" | null>(null);
   const [deleteConfirmPositionIds, setDeleteConfirmPositionIds] = useState<string[]>([]);
+
+  const categoryOptions = useMemo(() => {
+    const unique = Array.from(
+      new Set(
+        [
+          ...positions
+            .map((p) => normalizePositionCategory(p.position_kategorie))
+            .filter((v): v is string => v != null),
+          ...customCategoryOptions,
+        ]
+      )
+    );
+    return unique.sort((a, b) => a.localeCompare(b, "de-CH", { sensitivity: "base" }));
+  }, [positions, customCategoryOptions]);
+
+  const positionsByCategory = useMemo(() => {
+    const groups = new Map<string, PositionRow[]>();
+    for (const pos of positions) {
+      const key = normalizePositionCategory(pos.position_kategorie) ?? "Ohne Kategorie";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(pos);
+    }
+    const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+      if (a === "Ohne Kategorie") return 1;
+      if (b === "Ohne Kategorie") return -1;
+      return a.localeCompare(b, "de-CH", { sensitivity: "base" });
+    });
+    return sortedKeys.map((name) => ({ name, positions: groups.get(name) ?? [] }));
+  }, [positions]);
+
+  const sortedPositionsForTimeline = useMemo(
+    () => positionsByCategory.flatMap((group) => group.positions),
+    [positionsByCategory]
+  );
 
   useEffect(() => {
     if (!plan) return;
@@ -890,7 +976,7 @@ export default function MediaplanDetailPage() {
     const supabase = createClient();
     const { data } = await supabase
       .from("produkte")
-      .select("id, produktvariante_titel, name, platzierung, zusatzinformationen, ziel_eignung, preis_brutto_chf, preis_netto_chf, category")
+      .select("id, produktvariante_titel, name, platzierung, zusatzinformationen, ziel_eignung, preis_brutto_chf, preis_netto_chf, agentur_marge_prozent, werbeabgabe_at, category")
       .eq("archived", false)
       .order("category")
       .limit(200);
@@ -916,15 +1002,18 @@ export default function MediaplanDetailPage() {
       const supabase = createClient();
       const title = prod.produktvariante_titel ?? prod.name ?? "Produkt";
       const description = prod.platzierung ?? prod.zusatzinformationen ?? null;
+      const hasAtAdLevy = prod.werbeabgabe_at === true;
       const { error: err } = await supabase.from("mediaplan_positionen").insert({
         mediaplan_id: planId,
         produkt_id: prod.id,
         title,
         description,
         tag: prod.ziel_eignung ?? null,
-        brutto: prod.preis_brutto_chf ?? null,
+        brutto: withAtAdLevy(prod.preis_brutto_chf ?? null, hasAtAdLevy),
         discount_text: null,
-        kundenpreis: prod.preis_netto_chf ?? null,
+        kundenpreis: withAtAdLevy(prod.preis_netto_chf ?? null, hasAtAdLevy),
+        rabatt_agentur_prozent: prod.agentur_marge_prozent ?? null,
+        position_kategorie: null,
         status_tags: ["Offen"],
         sort_order: positions.length,
         start_date: null,
@@ -1006,6 +1095,22 @@ export default function MediaplanDetailPage() {
     await loadPositions();
   }, [deleteConfirmPositionIds, loadPositions]);
 
+  const assignCategoryToSelection = useCallback(async () => {
+    if (selectedPositionIds.length === 0) return;
+    const category = normalizePositionCategory(bulkCategoryValue);
+    const supabase = createClient();
+    const { error: err } = await supabase
+      .from("mediaplan_positionen")
+      .update({ position_kategorie: category })
+      .in("id", selectedPositionIds);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    setBulkCategoryValue("");
+    await loadPositions();
+  }, [selectedPositionIds, bulkCategoryValue, loadPositions]);
+
   const duplicatePosition = useCallback(
     async (positionId: string) => {
       const pos = positions.find((p) => p.id === positionId);
@@ -1038,6 +1143,7 @@ export default function MediaplanDetailPage() {
         rabatt_prozent: pos.rabatt_prozent,
         rabatt_agentur_prozent: pos.rabatt_agentur_prozent,
         agenturgebuehr: pos.agenturgebuehr,
+        position_kategorie: pos.position_kategorie ?? null,
         prozess_status: pos.prozess_status ?? {},
       });
       if (err) setError(err.message);
@@ -1191,7 +1297,7 @@ export default function MediaplanDetailPage() {
       <div className="pl-4 sm:pl-5">
         <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-100">Zeitplan – Übersicht</h2>
         <section className="-ml-4 sm:-ml-5 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
-          <GanttChart plan={plan} positions={positions} interactive />
+          <GanttChart plan={plan} positions={sortedPositionsForTimeline} interactive />
         </section>
       </div>
 
@@ -1200,7 +1306,7 @@ export default function MediaplanDetailPage() {
           <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">
             Bestätigte Positionen ({positions.length})
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
               <input
                 type="checkbox"
@@ -1219,6 +1325,62 @@ export default function MediaplanDetailPage() {
             </label>
             {selectedPositionIds.length > 0 && (
               <>
+                <select
+                  value={bulkCategoryValue}
+                  onChange={(e) => {
+                    if (e.target.value === "__new__") {
+                      setBulkCategoryValue("__new__");
+                      return;
+                    }
+                    setBulkCategoryValue(e.target.value);
+                  }}
+                  className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-200"
+                >
+                  <option value="">Kategorie wählen…</option>
+                  <option value="__new__">+ Neue Kategorie…</option>
+                  {categoryOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                {bulkCategoryValue === "__new__" && (
+                  <>
+                    <input
+                      type="text"
+                      value={newCategoryDraft}
+                      onChange={(e) => setNewCategoryDraft(e.target.value)}
+                      placeholder="Name der neuen Kategorie"
+                      className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const normalized = normalizePositionCategory(newCategoryDraft);
+                        if (!normalized) return;
+                        setCustomCategoryOptions((prev) =>
+                          prev.some((v) => v.localeCompare(normalized, "de-CH", { sensitivity: "base" }) === 0)
+                            ? prev
+                            : [...prev, normalized]
+                        );
+                        setBulkCategoryValue(normalized);
+                        setNewCategoryDraft("");
+                      }}
+                      className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                    >
+                      Übernehmen
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={assignCategoryToSelection}
+                  className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                >
+                  {normalizePositionCategory(bulkCategoryValue) == null
+                    ? `Kategorie löschen (${selectedPositionIds.length})`
+                    : `Kategorie zuweisen (${selectedPositionIds.length})`}
+                </button>
                 <button
                   type="button"
                   onClick={() => openDeleteConfirm(selectedPositionIds)}
@@ -1242,30 +1404,39 @@ export default function MediaplanDetailPage() {
             )}
           </div>
         </div>
-        <ul className="mt-4 space-y-4">
-          {positions.map((pos) => (
-            <PositionListItem
-              key={pos.id}
-              pos={pos}
-              plan={plan}
-              product={pos.produkt_id ? catalogProductMap[pos.produkt_id] ?? null : null}
-              selected={selectedPositionIds.includes(pos.id)}
-              onToggleSelect={() =>
-                setSelectedPositionIds((prev) =>
-                  prev.includes(pos.id) ? prev.filter((id) => id !== pos.id) : [...prev, pos.id]
-                )
-              }
-              formatChf={formatChf}
-              formatDateRange={formatDateRange}
-              formatDateInput={formatDateInput}
-              onDelete={() => openDeleteConfirm([pos.id])}
-              onDuplicate={() => duplicatePosition(pos.id)}
-              onUpdateDates={(dates) => updatePositionDates(pos.id, dates)}
-              onUpdateDetails={(payload) => updatePositionDetails(pos.id, payload)}
-              onUpdateProzessStatus={(payload) => updatePositionProzessStatus(pos.id, payload)}
-            />
+        <div className="mt-4 space-y-5">
+          {positionsByCategory.map((group) => (
+            <div key={group.name}>
+              <h3 className="mb-2 text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+                {group.name} ({group.positions.length})
+              </h3>
+              <ul className="space-y-4">
+                {group.positions.map((pos) => (
+                  <PositionListItem
+                    key={pos.id}
+                    pos={pos}
+                    plan={plan}
+                    product={pos.produkt_id ? catalogProductMap[pos.produkt_id] ?? null : null}
+                    selected={selectedPositionIds.includes(pos.id)}
+                    onToggleSelect={() =>
+                      setSelectedPositionIds((prev) =>
+                        prev.includes(pos.id) ? prev.filter((id) => id !== pos.id) : [...prev, pos.id]
+                      )
+                    }
+                    formatChf={formatChf}
+                    formatDateRange={formatDateRange}
+                    formatDateInput={formatDateInput}
+                    onDelete={() => openDeleteConfirm([pos.id])}
+                    onDuplicate={() => duplicatePosition(pos.id)}
+                    onUpdateDates={(dates) => updatePositionDates(pos.id, dates)}
+                    onUpdateDetails={(payload) => updatePositionDetails(pos.id, payload)}
+                    onUpdateProzessStatus={(payload) => updatePositionProzessStatus(pos.id, payload)}
+                  />
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
         <button
           type="button"
           onClick={openAddProduct}

@@ -17,6 +17,7 @@ import { PositionCatalogInfo } from "@/components/mediaplan/PositionCatalogInfo"
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 function PositionCardKunde({
   pos,
@@ -34,7 +35,7 @@ function PositionCardKunde({
   onToggleSelect: () => void;
   onFreigabe: () => void;
   onAblehnung: () => void;
-  formatChf: (n: number | null) => string;
+  formatChf: (n: number | null) => ReactNode;
   formatDateRange: (start: string | null, end: string | null) => string;
 }) {
   const [expanded, setExpanded] = useState(false);
