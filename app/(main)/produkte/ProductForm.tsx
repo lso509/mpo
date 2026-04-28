@@ -552,22 +552,22 @@ export function ProductForm({
                     <span className="flex items-center rounded-r-full bg-zinc-100 dark:bg-zinc-700 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">{product.waehrung ?? "CHF"}</span>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Agenturmarge (%)</label>
-                  <div className="mt-1 flex rounded-full border border-zinc-200 dark:border-zinc-600 overflow-hidden">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={product.agenturMargeProzent ?? ""}
-                      onChange={(e) => setField("agenturMargeProzent", e.target.value === "" ? null : parseFloat(e.target.value))}
-                      className="min-w-0 flex-1 rounded-l-full border-0 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:ring-2 focus:ring-[#FF6554]"
-                    />
-                    <span className="flex items-center rounded-r-full bg-zinc-100 dark:bg-zinc-700 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">%</span>
-                  </div>
-                </div>
               </>
             )}
+            <div>
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Agenturmarge (%)</label>
+              <div className="mt-1 flex rounded-full border border-zinc-200 dark:border-zinc-600 overflow-hidden">
+                <input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={product.agenturMargeProzent ?? ""}
+                  onChange={(e) => setField("agenturMargeProzent", e.target.value === "" ? null : parseFloat(e.target.value))}
+                  className="min-w-0 flex-1 rounded-l-full border-0 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:ring-2 focus:ring-[#FF6554]"
+                />
+                <span className="flex items-center rounded-r-full bg-zinc-100 dark:bg-zinc-700 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">%</span>
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
                 {isPerMm ? "Mindestverrechnung" : "Mindestbudget"}
