@@ -233,9 +233,14 @@ export default function ProduktBearbeitenPage() {
   // Task-Vorlagen
   useEffect(() => {
     const supabase = createClient();
-    supabase.from("task_vorlagen").select("id, category, title, description").order("category").order("title").then(({ data }) => {
+    supabase
+      .from("task_vorlagen")
+      .select("id, category, title, description, standard_tage, standard_richtung, standard_referenz, is_active")
+      .order("category")
+      .order("title")
+      .then(({ data }) => {
       if (data) setTaskVorlagen(sortTaskVorlagen(data as TaskVorlage[]));
-    });
+      });
   }, []);
 
   // Produkt-Task-Konfiguration und Änderungshistorie (nur bei Bearbeitung)

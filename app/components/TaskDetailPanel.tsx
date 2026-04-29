@@ -120,7 +120,7 @@ export function TaskDetailPanel({
                   {task.email_vorlage_title}
                 </p>
                 <Link
-                  href={`/kommunikation/email-vorlagen/${task.email_vorlage_id}`}
+                  href={`/einstellungen/email-vorlagen/${task.email_vorlage_id}`}
                   className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-[#FF6554] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#e55a4a]"
                 >
                   ✉ E-Mail Vorlage öffnen

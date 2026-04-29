@@ -96,7 +96,22 @@ export const USE_CASE_OPTIONS = [
 ] as const;
 export type UseCaseOption = (typeof USE_CASE_OPTIONS)[number];
 
-export const ZIEL_EIGNUNG_OPTIONS = ["Sichtbarkeit", "Traffic", "Conversion", "Sonstige"];
+/** Ziel (Medienstrategie): exakt eine Option, kein Freitext. */
+export const ZIEL_OPTIONS = ["Sichtbarkeit", "Traffic", "Conversion"] as const;
+export type ZielOption = (typeof ZIEL_OPTIONS)[number];
+
+/** Liefert die erste gültige Option aus DB-Wert (Legacy: Komma-getrennt, „Sonstige“) oder "". */
+export function parseZielEignung(value: string | null | undefined): string {
+  const valid = new Set<string>(ZIEL_OPTIONS);
+  if (value == null) return "";
+  const s = String(value).trim();
+  if (s === "") return "";
+  if (valid.has(s)) return s;
+  for (const part of s.split(",").map((x) => x.trim()).filter(Boolean)) {
+    if (valid.has(part)) return part;
+  }
+  return "";
+}
 export const LAUFZEIT_OPTIONS = ["1 Woche", "2 Wochen", "1 Monat", "3 Monate", "6 Monate", "1 Jahr", "Pro Erscheinung"];
 
 export type ProductMmTariff = {
@@ -196,6 +211,10 @@ export type TaskVorlage = {
   category: string;
   title: string;
   description: string | null;
+  standard_tage?: number | null;
+  standard_richtung?: Richtung | null;
+  standard_referenz?: Referenz | null;
+  is_active?: boolean | null;
 };
 
 export const RICHTUNG_OPTIONS = ["vor", "nach", "am gleichen Tag"] as const;
@@ -280,7 +299,11 @@ export function mapRow(row: Record<string, unknown>): Product {
     platzierung: row.platzierung != null ? String(row.platzierung) : null,
     position: row.position != null ? String(row.position) : null,
     zusatzinformationen: row.zusatzinformationen != null ? String(row.zusatzinformationen) : null,
-    zielEignung: row.ziel_eignung != null ? String(row.ziel_eignung) : null,
+    zielEignung: (() => {
+      const raw = row.ziel_eignung != null ? String(row.ziel_eignung) : null;
+      const v = parseZielEignung(raw);
+      return v || null;
+    })(),
     creativeFarbe: row.creative_farbe != null ? String(row.creative_farbe) : null,
     creativeDateityp: row.creative_dateityp != null ? String(row.creative_dateityp) : null,
     creativeGroesse: row.creative_groesse != null ? String(row.creative_groesse) : (row.size != null ? String(row.size) : null),
@@ -327,7 +350,7 @@ export function productToRow(p: Partial<Product>): Record<string, unknown> {
     platzierung: p.platzierung ?? null,
     position: p.position ?? null,
     zusatzinformationen: p.zusatzinformationen ?? null,
-    ziel_eignung: p.zielEignung ?? null,
+    ziel_eignung: parseZielEignung(p.zielEignung) || null,
     creative_farbe: p.creativeFarbe ?? null,
     creative_dateityp: p.creativeDateityp ?? null,
     creative_groesse: p.creativeGroesse ?? null,
@@ -368,7 +391,7 @@ const CHANGELOG_FIELDS: Record<string, string> = {
   kanal: "Kanal",
   platzierung: "Platzierung",
   position: "Position",
-  ziel_eignung: "Ziel-Eignung",
+  ziel_eignung: "Ziel",
   creative_groesse: "Creative Grösse",
   laufzeit_pro_einheit: "Laufzeit",
   preis_brutto_chf: "Preis Brutto CHF",

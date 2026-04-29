@@ -14,10 +14,16 @@ import { GanttChart } from "@/components/mediaplan/GanttChart";
 import { MediaplanKundenInfo } from "@/components/mediaplan/MediaplanKundenInfo";
 import { MediaplanKundenberater } from "@/components/mediaplan/MediaplanKundenberater";
 import { PositionCatalogInfo } from "@/components/mediaplan/PositionCatalogInfo";
+import { CollapsibleChevron } from "@/components/shared/CollapsibleChevron";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+
+function normalizePositionCategory(value: string | null | undefined): string | null {
+  const cleaned = (value ?? "").trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
 
 function PositionCardKunde({
   pos,
@@ -50,7 +56,7 @@ function PositionCardKunde({
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") setExpanded((x) => !x);
         }}
-        className="flex cursor-pointer flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/80"
+        className="flex cursor-pointer flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/80"
       >
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <input
@@ -69,11 +75,9 @@ function PositionCardKunde({
             {pos.description && (
               <p className="text-sm text-zinc-600 dark:text-zinc-400">{pos.description}</p>
             )}
-            {pos.tag && (
-              <span className="mt-1 inline-block rounded bg-zinc-100 dark:bg-zinc-700 px-2 py-0.5 text-xs text-zinc-700 dark:text-zinc-200">
-                {pos.tag}
-              </span>
-            )}
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Laufzeit: {formatDateRange(pos.start_date, pos.end_date)}
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -115,19 +119,12 @@ function PositionCardKunde({
           {pos.brutto != null && <p className="text-zinc-500 dark:text-zinc-400">Brutto {formatChf(pos.brutto)}</p>}
           <p className="font-semibold text-zinc-950 dark:text-zinc-100">Kundenpreis {formatChf(pos.kundenpreis)}</p>
         </div>
-        <span
-          className={`shrink-0 text-zinc-500 transition-transform ${expanded ? "rotate-180" : ""}`}
-          aria-hidden
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </span>
+        <CollapsibleChevron open={expanded} />
       </div>
 
       {expanded && (
         <div className="border-t border-zinc-200 dark:border-zinc-700">
-          <PositionCatalogInfo product={product} />
+          <PositionCatalogInfo product={product} position={pos} view="customer" />
         </div>
       )}
     </li>
@@ -156,6 +153,7 @@ export default function MediaplanKundenansichtPage() {
     freigabeStatus,
   } = useMediaplanData(planId);
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
+  const [collapsedCampaignGroups, setCollapsedCampaignGroups] = useState<Record<string, boolean>>({});
   const { user } = useUser();
   const [editKundenInfo, setEditKundenInfo] = useState(false);
   const [savingKundenInfo, setSavingKundenInfo] = useState(false);
@@ -286,6 +284,26 @@ export default function MediaplanKundenansichtPage() {
 
   const maxBudgetGoal = Math.max(1, ...budgetByGoal.map((g) => g.sum));
 
+  const positionsByCategory = useMemo(() => {
+    const groups = new Map<string, PositionRow[]>();
+    for (const pos of positions) {
+      const key = normalizePositionCategory(pos.position_kategorie) ?? "Ohne Kampagne";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(pos);
+    }
+    const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+      if (a === "Ohne Kampagne") return 1;
+      if (b === "Ohne Kampagne") return -1;
+      return a.localeCompare(b, "de-CH", { sensitivity: "base" });
+    });
+    return sortedKeys.map((name) => ({ name, positions: groups.get(name) ?? [] }));
+  }, [positions]);
+
+  const sortedPositionsForTimeline = useMemo(
+    () => positionsByCategory.flatMap((group) => group.positions),
+    [positionsByCategory]
+  );
+
   const positionenZurFreigabeCount = useMemo(
     () => positions.filter((p) => freigabeStatus(p) === "Offen").length,
     [positions]
@@ -410,7 +428,7 @@ export default function MediaplanKundenansichtPage() {
             Zeitplan – Übersicht
           </h2>
           <section className="-ml-4 sm:-ml-5 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
-            <GanttChart plan={plan} positions={positions} />
+            <GanttChart plan={plan} positions={sortedPositionsForTimeline} />
           </section>
         </div>
 
@@ -453,25 +471,51 @@ export default function MediaplanKundenansichtPage() {
               )}
             </div>
           </div>
-          <ul className="mt-4 space-y-4">
-            {positions.map((pos) => (
-              <PositionCardKunde
-                key={pos.id}
-                pos={pos}
-                product={pos.produkt_id ? catalogProductMap[pos.produkt_id] ?? null : null}
-                selected={selectedPositionIds.includes(pos.id)}
-                onToggleSelect={() =>
-                  setSelectedPositionIds((prev) =>
-                    prev.includes(pos.id) ? prev.filter((id) => id !== pos.id) : [...prev, pos.id]
-                  )
-                }
-                onFreigabe={() => setFreigabe(pos.id)}
-                onAblehnung={() => setAblehnung(pos.id)}
-                formatChf={formatChf}
-                formatDateRange={formatDateRange}
-              />
+          <div className="mt-2 space-y-2">
+            {positionsByCategory.map((group) => (
+              <div key={group.name}>
+                <button
+                  type="button"
+                  className="mb-1.5 inline-flex w-full items-center justify-between gap-2 text-left text-sm font-semibold text-zinc-700 dark:text-zinc-200"
+                  onClick={() =>
+                    setCollapsedCampaignGroups((prev) => ({
+                      ...prev,
+                      [group.name]: !prev[group.name],
+                    }))
+                  }
+                >
+                  <div className="inline-flex min-w-0 items-center gap-2">
+                    <span className="truncate">{group.name} ({group.positions.length})</span>
+                    <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                      · Summe {formatChf(group.positions.reduce((sum, p) => sum + (p.kundenpreis ?? 0), 0))}
+                    </span>
+                  </div>
+                  <CollapsibleChevron open={!collapsedCampaignGroups[group.name]} />
+                </button>
+                {!collapsedCampaignGroups[group.name] && (
+                  <ul className="space-y-1.5">
+                    {group.positions.map((pos) => (
+                      <PositionCardKunde
+                        key={pos.id}
+                        pos={pos}
+                        product={pos.produkt_id ? catalogProductMap[pos.produkt_id] ?? null : null}
+                        selected={selectedPositionIds.includes(pos.id)}
+                        onToggleSelect={() =>
+                          setSelectedPositionIds((prev) =>
+                            prev.includes(pos.id) ? prev.filter((id) => id !== pos.id) : [...prev, pos.id]
+                          )
+                        }
+                        onFreigabe={() => setFreigabe(pos.id)}
+                        onAblehnung={() => setAblehnung(pos.id)}
+                        formatChf={formatChf}
+                        formatDateRange={formatDateRange}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </div>
             ))}
-          </ul>
+          </div>
         </section>
 
         <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">

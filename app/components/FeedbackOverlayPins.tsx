@@ -195,6 +195,34 @@ export function FeedbackOverlayPins() {
     setEditForm(null);
   }, [editForm, editingId]);
 
+  const handleArchive = useCallback(async (feedbackId: string) => {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("feedback_eintraege")
+      .update({ archived: true })
+      .eq("id", feedbackId);
+    if (error) {
+      console.error("Feedback archivieren fehlgeschlagen:", error);
+      return;
+    }
+    setItems((prev) => prev.filter((item) => item.id !== feedbackId));
+    setCommentsByFeedback((prev) => {
+      const next = { ...prev };
+      delete next[feedbackId];
+      return next;
+    });
+    setCommentDraftByFeedback((prev) => {
+      const next = { ...prev };
+      delete next[feedbackId];
+      return next;
+    });
+    if (openId === feedbackId) setOpenId(null);
+    if (editingId === feedbackId) {
+      setEditingId(null);
+      setEditForm(null);
+    }
+  }, [editingId, openId]);
+
   const handleSendComment = useCallback(
     async (feedbackId: string) => {
       const text = commentDraftByFeedback[feedbackId]?.trim();
@@ -347,6 +375,13 @@ export function FeedbackOverlayPins() {
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
+                      onClick={() => void handleArchive(e.id)}
+                      className="rounded-full border border-amber-300 px-3 py-1 text-xs text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                    >
+                      Archivieren
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => {
                         setEditingId(null);
                         setEditForm(null);
@@ -374,13 +409,22 @@ export function FeedbackOverlayPins() {
                     {e.status !== "Offen" ? ` · ${e.status}` : ""}
                   </p>
                   <div className="mt-2 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => handleStartEdit(e)}
-                      className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
-                    >
-                      Bearbeiten
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleArchive(e.id)}
+                        className="rounded-full border border-amber-300 px-3 py-1 text-xs text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                      >
+                        Archivieren
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStartEdit(e)}
+                        className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                      >
+                        Bearbeiten
+                      </button>
+                    </div>
                   </div>
                 </>
               )}

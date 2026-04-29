@@ -20,11 +20,13 @@ import {
   type Richtung,
   type Referenz,
   type TaskVorlage,
-  ZIEL_EIGNUNG_OPTIONS,
+  parseZielEignung,
+  ZIEL_OPTIONS,
 } from "@/lib/produkte";
 import { ProduktBildUpload } from "@/app/components/produkte/ProduktBildUpload";
 import { ProduktDateienUpload } from "@/app/components/produkte/ProduktDateienUpload";
 import { FeedbackMarker } from "@/app/components/FeedbackMarker";
+import { CollapsibleChevron } from "@/components/shared/CollapsibleChevron";
 import { useEffect, useState } from "react";
 
 type AenderungshistorieEntry = {
@@ -95,10 +97,26 @@ export function ProductForm({
   });
   const [showProduktgruppeModal, setShowProduktgruppeModal] = useState(false);
   const [newProduktgruppe, setNewProduktgruppe] = useState("");
-  const selectedZielEignung = (product.zielEignung ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const PRODUCT_FORM_SECTIONS = ["basis", "placement", "preise", "automatisierung", "historie"] as const;
+  type ProductFormSection = (typeof PRODUCT_FORM_SECTIONS)[number];
+  const [openSections, setOpenSections] = useState<Record<ProductFormSection, boolean>>(
+    () => Object.fromEntries(PRODUCT_FORM_SECTIONS.map((k) => [k, true])) as Record<ProductFormSection, boolean>
+  );
+  const isSectionOpen = (id: ProductFormSection) => openSections[id] !== false;
+  const toggleSection = (id: ProductFormSection) => {
+    setOpenSections((s) => ({ ...s, [id]: !isSectionOpen(id) }));
+  };
+  const expandAllProductSections = () => {
+    setOpenSections(
+      Object.fromEntries(PRODUCT_FORM_SECTIONS.map((k) => [k, true])) as Record<ProductFormSection, boolean>
+    );
+  };
+  const collapseAllProductSections = () => {
+    setOpenSections(
+      Object.fromEntries(PRODUCT_FORM_SECTIONS.map((k) => [k, false])) as Record<ProductFormSection, boolean>
+    );
+  };
+  const zielSelectValue = parseZielEignung(product.zielEignung);
   const isPerMm = product.pricingType === "per_mm";
   const mmTariffs = product.mmTariffs ?? [];
   const fixedFormats = product.fixedFormats ?? [];
@@ -173,12 +191,37 @@ export function ProductForm({
         onSave(false, false);
       }}
     >
-      <div className="p-6 pb-32 space-y-6">
+      <div className="p-6 pb-32">
+        <div className="mb-0 flex flex-wrap items-baseline justify-end gap-x-4 gap-y-1 pr-5">
+          <button
+            type="button"
+            onClick={expandAllProductSections}
+            className="p-0 text-left text-sm font-medium text-zinc-600 underline-offset-2 hover:text-zinc-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-100"
+          >
+            Alle aufklappen
+          </button>
+          <button
+            type="button"
+            onClick={collapseAllProductSections}
+            className="p-0 text-left text-sm font-medium text-zinc-600 underline-offset-2 hover:text-zinc-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-100"
+          >
+            Alle zuklappen
+          </button>
+        </div>
+
+        <div className="space-y-6">
         {/* 1. Basis-Infos */}
-        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
-          <h4 className="mb-3 text-lg font-semibold text-zinc-950 dark:text-zinc-100">
-            Basis-Infos
-          </h4>
+        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 px-4 pb-4 pt-0 sm:px-5 sm:pb-5 sm:pt-0">
+          <button
+            type="button"
+            onClick={() => toggleSection("basis")}
+            aria-expanded={isSectionOpen("basis")}
+            className="mb-3 flex w-full items-center justify-between gap-2 text-left -mx-1 rounded-xl px-1 py-0.5 hover:bg-zinc-100/60 dark:hover:bg-zinc-700/40"
+          >
+            <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Basis-Infos</h4>
+            <CollapsibleChevron open={isSectionOpen("basis")} />
+          </button>
+          {isSectionOpen("basis") && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Produktvariante Titel</label>
@@ -350,13 +393,21 @@ export function ProductForm({
               />
             </div>
           </div>
+          )}
         </section>
 
         {/* 2. Placement & Kreativ-Specs */}
-        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
-          <h4 className="mb-3 text-lg font-semibold text-zinc-950 dark:text-zinc-100">
-            Placement &amp; Kreativ-Specs
-          </h4>
+        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 px-4 pb-4 pt-0 sm:px-5 sm:pb-5 sm:pt-0">
+          <button
+            type="button"
+            onClick={() => toggleSection("placement")}
+            aria-expanded={isSectionOpen("placement")}
+            className="mb-3 flex w-full items-center justify-between gap-2 text-left -mx-1 rounded-xl px-1 py-0.5 hover:bg-zinc-100/60 dark:hover:bg-zinc-700/40"
+          >
+            <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Placement &amp; Kreativ-Specs</h4>
+            <CollapsibleChevron open={isSectionOpen("placement")} />
+          </button>
+          {isSectionOpen("placement") && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Platzierung</label>
@@ -378,34 +429,22 @@ export function ProductForm({
               <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">z.B. Above the Fold – Homepage</p>
             </div>
             <div>
-              <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Ziel-Eignung</p>
-              <ul className="mt-1 space-y-1.5">
-                {ZIEL_EIGNUNG_OPTIONS.map((opt) => {
-                  const selected = selectedZielEignung.includes(opt);
-                  return (
-                    <li key={opt} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id={`ziel-eignung-${opt.replace(/\s+/g, "-")}`}
-                        checked={selected}
-                        onChange={() => {
-                          const next = selected
-                            ? selectedZielEignung.filter((x) => x !== opt)
-                            : [...selectedZielEignung, opt];
-                          setField("zielEignung", next.length > 0 ? next.join(", ") : null);
-                        }}
-                        className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#3f3f46_40%)]"
-                      />
-                      <label
-                        htmlFor={`ziel-eignung-${opt.replace(/\s+/g, "-")}`}
-                        className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300"
-                      >
-                        {opt}
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Ziel</label>
+              <select
+                value={zielSelectValue}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setField("zielEignung", v === "" ? null : v);
+                }}
+                className="mt-1 w-full rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+              >
+                <option value="">—</option>
+                {ZIEL_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Zusatzinformationen</label>
@@ -467,13 +506,22 @@ export function ProductForm({
               />
             </div>
           </div>
+          )}
         </section>
 
-        {/* 3. Preise & Budget */}
-        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
-          <h4 className="mb-3 text-lg font-semibold text-zinc-950 dark:text-zinc-100">
-            Preise &amp; Budget
-          </h4>
+        {/* 3. Preise & Budget (inkl. Tarife bei Individualformat) */}
+        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 px-4 pb-4 pt-0 sm:px-5 sm:pb-5 sm:pt-0">
+          <button
+            type="button"
+            onClick={() => toggleSection("preise")}
+            aria-expanded={isSectionOpen("preise")}
+            className="mb-3 flex w-full items-center justify-between gap-2 text-left -mx-1 rounded-xl px-1 py-0.5 hover:bg-zinc-100/60 dark:hover:bg-zinc-700/40"
+          >
+            <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Preise &amp; Budget</h4>
+            <CollapsibleChevron open={isSectionOpen("preise")} />
+          </button>
+          {isSectionOpen("preise") && (
+          <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">Währung</label>
@@ -616,10 +664,10 @@ export function ProductForm({
               />
             </div>
           </div>
-        </section>
 
         {isPerMm && (
-          <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
+          <div className="mt-6 space-y-8 border-t border-zinc-200 dark:border-zinc-600 pt-6">
+            <div>
             <div className="mb-3 flex items-center justify-between gap-3">
               <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Tarife Individualformat</h4>
               <button
@@ -716,11 +764,9 @@ export function ProductForm({
             <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
               Die konkrete Auswahl (Spalten/Höhe) und Preisberechnung erfolgt später im Mediaplan.
             </p>
-          </section>
-        )}
+            </div>
 
-        {isPerMm && (
-          <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
+            <div>
             <div className="mb-3 flex items-center justify-between gap-3">
               <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Tarife Fixformate</h4>
               <button
@@ -827,17 +873,32 @@ export function ProductForm({
                 </tbody>
               </table>
             </div>
-          </section>
+            </div>
+          </div>
         )}
 
+          </>
+          )}
+        </section>
+
         {/* 4. Automatisierung */}
-        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
-          <h4 className="mb-3 text-lg font-semibold text-zinc-950 dark:text-zinc-100">
-            Automatisierung
-          </h4>
+        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 px-4 pb-4 pt-0 sm:px-5 sm:pb-5 sm:pt-0">
+          <button
+            type="button"
+            onClick={() => toggleSection("automatisierung")}
+            aria-expanded={isSectionOpen("automatisierung")}
+            className="mb-3 flex w-full items-center justify-between gap-2 text-left -mx-1 rounded-xl px-1 py-0.5 hover:bg-zinc-100/60 dark:hover:bg-zinc-700/40"
+          >
+            <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Automatisierung</h4>
+            <CollapsibleChevron open={isSectionOpen("automatisierung")} />
+          </button>
+          {isSectionOpen("automatisierung") && (
           <div className="space-y-4">
             {Array.from(new Set(taskVorlagen.map((t) => t.category))).map((cat) => {
-              const items = taskVorlagen.filter((t) => t.category === cat);
+              const items = taskVorlagen.filter(
+                (t) => t.category === cat && (t.is_active !== false || selectedTasks.some((sel) => sel.task_vorlage_id === t.id))
+              );
+              if (items.length === 0) return null;
               return (
                 <div key={cat}>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{cat}</p>
@@ -862,7 +923,12 @@ export function ProductForm({
                                     if (prev.some((c) => c.task_vorlage_id === t.id)) {
                                       return prev.filter((c) => c.task_vorlage_id !== t.id);
                                     }
-                                    const def = getDefaultTaskConfig(t.title);
+                                    const fallback = getDefaultTaskConfig(t.title);
+                                    const def = {
+                                      tage: t.standard_tage ?? fallback.tage,
+                                      richtung: t.standard_richtung ?? fallback.richtung,
+                                      referenz: t.standard_referenz ?? fallback.referenz,
+                                    };
                                     return [...prev, { task_vorlage_id: t.id, ...def }];
                                   });
                                 }}
@@ -937,6 +1003,7 @@ export function ProductForm({
               );
             })}
           </div>
+          )}
         </section>
 
         {isNew && setFuzzyMatchThreshold != null && (
@@ -957,8 +1024,18 @@ export function ProductForm({
         )}
 
         {!isNew && productId && (
-          <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
-            <h4 className="mb-3 text-lg font-semibold text-zinc-950 dark:text-zinc-100">Änderungshistorie</h4>
+          <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 px-4 pb-4 pt-0 sm:px-5 sm:pb-5 sm:pt-0">
+            <button
+              type="button"
+              onClick={() => toggleSection("historie")}
+              aria-expanded={isSectionOpen("historie")}
+              className="mb-3 flex w-full items-center justify-between gap-2 text-left -mx-1 rounded-xl px-1 py-0.5 hover:bg-zinc-100/60 dark:hover:bg-zinc-700/40"
+            >
+              <h4 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Änderungshistorie</h4>
+              <CollapsibleChevron open={isSectionOpen("historie")} />
+            </button>
+            {isSectionOpen("historie") && (
+            <>
             {aenderungshistorie.length === 0 ? (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">Noch keine Änderungen erfasst.</p>
             ) : (
@@ -983,8 +1060,11 @@ export function ProductForm({
                 })}
               </ul>
             )}
+            </>
+            )}
           </section>
         )}
+        </div>
       </div>
 
       {/* Fixed am unteren Viewport-Rand, links ab Sidebar (w-64) */}

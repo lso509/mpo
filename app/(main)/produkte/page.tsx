@@ -3,7 +3,7 @@
 import { NeuesProduktButton } from "@/app/components/NeuesProduktButton";
 import { formatChf } from "@/lib/mediaplan/utils";
 import { createClient } from "@/lib/supabase/client";
-import { categoryLabel as libCategoryLabel } from "@/lib/produkte";
+import { categoryLabel as libCategoryLabel, parseZielEignung, ZIEL_OPTIONS } from "@/lib/produkte";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
@@ -20,7 +20,6 @@ const CATEGORIES = [
 ];
 
 const categoryLabel = libCategoryLabel;
-const ZIEL_EIGNUNG_OPTIONS = ["Sichtbarkeit", "Traffic", "Conversion", "Sonstige"];
 const LAUFZEIT_OPTIONS = ["1 Woche", "2 Wochen", "1 Monat", "3 Monate", "6 Monate", "1 Jahr"];
 
 export type Product = {
@@ -67,6 +66,10 @@ export type TaskVorlage = {
   category: string;
   title: string;
   description: string | null;
+  standard_tage?: number | null;
+  standard_richtung?: Richtung | null;
+  standard_referenz?: Referenz | null;
+  is_active?: boolean | null;
 };
 
 export const RICHTUNG_OPTIONS = ["vor", "nach", "am gleichen Tag"] as const;
@@ -132,7 +135,10 @@ function mapRow(row: Record<string, unknown>): Product {
     platzierung: row.platzierung != null ? String(row.platzierung) : null,
     position: row.position != null ? String(row.position) : null,
     zusatzinformationen: row.zusatzinformationen != null ? String(row.zusatzinformationen) : null,
-    zielEignung: row.ziel_eignung != null ? String(row.ziel_eignung) : null,
+    zielEignung: (() => {
+      const v = parseZielEignung(row.ziel_eignung != null ? String(row.ziel_eignung) : null);
+      return v || null;
+    })(),
     creativeFarbe: row.creative_farbe != null ? String(row.creative_farbe) : null,
     creativeDateityp: row.creative_dateityp != null ? String(row.creative_dateityp) : null,
     creativeGroesse: row.creative_groesse != null ? String(row.creative_groesse) : (row.size != null ? String(row.size) : null),
@@ -167,7 +173,7 @@ const EXCEL_HEADERS = [
   "Mindestbudget",
   "Laufzeit",
   "Creative Grösse",
-  "Ziel-Eignung",
+  "Ziel",
   "Preis Brutto CHF",
   "Preis Agenturservice",
   "Empfohlenes Medienbudget",
@@ -194,7 +200,7 @@ function productToExcelRow(p: Product): Record<string, string | number | null> {
     "Mindestbudget": p.mindestbudget ?? "",
     "Laufzeit": p.laufzeitProEinheit ?? "",
     "Creative Grösse": p.creativeGroesse ?? "",
-    "Ziel-Eignung": p.zielEignung ?? "",
+    "Ziel": p.zielEignung ?? "",
     "Preis Brutto CHF": p.preisBruttoChf ?? "",
     "Preis Agenturservice": p.preisAgenturservice ?? "",
     "Empfohlenes Medienbudget": p.empfohlenesMedienbudget ?? "",
@@ -234,7 +240,11 @@ function excelRowToProduct(row: Record<string, unknown>): Partial<Product> {
     mindestbudget: num("Mindestbudget"),
     laufzeitProEinheit: get("Laufzeit") as string | null,
     creativeGroesse: get("Creative Grösse") as string | null,
-    zielEignung: get("Ziel-Eignung") as string | null,
+    zielEignung: (() => {
+      const raw = (get("Ziel") ?? get("Ziel-Eignung")) as string | null;
+      const v = parseZielEignung(raw);
+      return v || null;
+    })(),
     preisBruttoChf: num("Preis Brutto CHF"),
     preisAgenturservice: num("Preis Agenturservice"),
     empfohlenesMedienbudget: get("Empfohlenes Medienbudget") as string | null,
@@ -263,7 +273,7 @@ function productToRow(p: Partial<Product>): Record<string, unknown> {
     platzierung: p.platzierung ?? null,
     position: p.position ?? null,
     zusatzinformationen: p.zusatzinformationen ?? null,
-    ziel_eignung: p.zielEignung ?? null,
+    ziel_eignung: parseZielEignung(p.zielEignung) || null,
     creative_farbe: p.creativeFarbe ?? null,
     creative_dateityp: p.creativeDateityp ?? null,
     creative_groesse: p.creativeGroesse ?? null,
@@ -298,7 +308,7 @@ const CHANGELOG_FIELDS: Record<string, string> = {
   kanal: "Kanal",
   platzierung: "Platzierung",
   position: "Position",
-  ziel_eignung: "Ziel-Eignung",
+  ziel_eignung: "Ziel",
   creative_groesse: "Creative Grösse",
   laufzeit_pro_einheit: "Laufzeit",
   preis_brutto_chf: "Preis Brutto CHF",
@@ -391,13 +401,6 @@ function matchesSearch(p: Product, q: string): boolean {
 
 function uniqueSorted(arr: (string | null)[]): string[] {
   return Array.from(new Set(arr.filter((x): x is string => x != null && x !== ""))).sort();
-}
-
-function splitMultiValue(value: string | null | undefined): string[] {
-  return (value ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
 }
 
 function getUseCases(p: Product): string[] {
@@ -684,8 +687,8 @@ export default function ProduktePage() {
       if (!values.some((v) => filterUseCase.includes(v))) return false;
     }
     if (filterZielEignung.length > 0) {
-      const values = splitMultiValue(p.zielEignung);
-      if (!values.some((v) => filterZielEignung.includes(v))) return false;
+      const z = parseZielEignung(p.zielEignung);
+      if (!z || !filterZielEignung.includes(z)) return false;
     }
     if (filterLaufzeit.length > 0 && (p.laufzeitProEinheit == null || !filterLaufzeit.includes(p.laufzeitProEinheit)))
       return false;
@@ -705,9 +708,6 @@ export default function ProduktePage() {
   const uniqueVerlage = uniqueSorted(visibleProducts.map((p) => p.verlag));
   const uniqueKanal = uniqueSorted(visibleProducts.map((p) => p.kanal));
   const uniqueUseCase = uniqueSorted(visibleProducts.flatMap((p) => getUseCases(p)));
-  const uniqueZielEignung = uniqueSorted(
-    visibleProducts.flatMap((p) => splitMultiValue(p.zielEignung))
-  );
   const uniqueLaufzeit = uniqueSorted(visibleProducts.map((p) => p.laufzeitProEinheit));
 
   const displayName = (p: Product) =>
@@ -811,27 +811,25 @@ export default function ProduktePage() {
           </div>
         )}
 
-        {uniqueZielEignung.length > 0 && (
-          <div>
-            <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Ziel-Eignung</p>
-            <ul className={filterListClass}>
-              {uniqueZielEignung.map((z) => (
-                <li key={z} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id={`ziel-${z}`}
-                    checked={filterZielEignung.includes(z)}
-                    onChange={() => toggleFilter(setFilterZielEignung, z)}
-                    className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#3f3f46_40%)]"
-                  />
-                  <label htmlFor={`ziel-${z}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
-                    {z}
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <div>
+          <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">Ziel</p>
+          <ul className={filterListClass}>
+            {ZIEL_OPTIONS.map((z) => (
+              <li key={z} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id={`ziel-${z}`}
+                  checked={filterZielEignung.includes(z)}
+                  onChange={() => toggleFilter(setFilterZielEignung, z)}
+                  className="h-4 w-4 rounded border-0 border-none bg-white dark:bg-zinc-700 shadow-none outline-none ring-0 appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,white_40%)] dark:checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#3f3f46_40%)]"
+                />
+                <label htmlFor={`ziel-${z}`} className="cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
+                  {z}
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
 
         {uniqueLaufzeit.length > 0 && (
           <div>

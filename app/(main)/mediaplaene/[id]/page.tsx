@@ -12,6 +12,7 @@ import type {
   PositionRow,
 } from "@/lib/mediaplan/types";
 import { formatChf, formatDateRange, freigabeStatus, parseOptionalChfInput } from "@/lib/mediaplan/utils";
+import { parseZielEignung, ZIEL_OPTIONS } from "@/lib/produkte";
 import { useMediaplanData } from "@/hooks/useMediaplanData";
 import { Aenderungshistorie } from "@/components/shared/Aenderungshistorie";
 import { MediaplanBudgetOverview } from "@/components/mediaplan/MediaplanBudgetOverview";
@@ -20,6 +21,7 @@ import { GanttChart } from "@/components/mediaplan/GanttChart";
 import { MediaplanKundenInfo } from "@/components/mediaplan/MediaplanKundenInfo";
 import { MediaplanKundenberater } from "@/components/mediaplan/MediaplanKundenberater";
 import { PositionCatalogInfo } from "@/components/mediaplan/PositionCatalogInfo";
+import { CollapsibleChevron } from "@/components/shared/CollapsibleChevron";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -91,6 +93,259 @@ function formatDateInput(v: string | null): string {
   return `${y}-${m}-${day}`;
 }
 
+function parseIsoDate(value: string): Date | null {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toIsoDate(value: Date): string {
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function getIsoWeekStart(year: number, week: number): Date {
+  const jan4 = new Date(year, 0, 4);
+  const jan4Day = jan4.getDay() || 7;
+  const mondayWeek1 = new Date(jan4);
+  mondayWeek1.setDate(jan4.getDate() - jan4Day + 1);
+  const result = new Date(mondayWeek1);
+  result.setDate(mondayWeek1.getDate() + (week - 1) * 7);
+  return result;
+}
+
+function getIsoWeekInfo(date: Date): { year: number; week: number } {
+  const target = new Date(date);
+  const day = target.getDay() || 7;
+  target.setDate(target.getDate() + 4 - day);
+  const year = target.getFullYear();
+  const yearStart = new Date(year, 0, 1);
+  const week = Math.ceil((((target.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return { year, week };
+}
+
+function buildCalendarWeeks(month: Date): Date[][] {
+  const firstOfMonth = new Date(month.getFullYear(), month.getMonth(), 1);
+  const mondayIndex = (firstOfMonth.getDay() + 6) % 7;
+  const gridStart = new Date(firstOfMonth);
+  gridStart.setDate(firstOfMonth.getDate() - mondayIndex);
+  return Array.from({ length: 6 }, (_, rowIndex) =>
+    Array.from({ length: 7 }, (_, colIndex) => {
+      const day = new Date(gridStart);
+      day.setDate(gridStart.getDate() + rowIndex * 7 + colIndex);
+      return day;
+    })
+  );
+}
+
+function WeekAwareDateInput({
+  value,
+  onChange,
+  onSelectWeek,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSelectWeek?: (start: string, end: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedDate = parseIsoDate(value);
+  const [viewMonth, setViewMonth] = useState<Date>(() => selectedDate ?? new Date());
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const next = selectedDate ?? new Date();
+    setViewMonth(new Date(next.getFullYear(), next.getMonth(), 1));
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const weeks = useMemo(() => buildCalendarWeeks(viewMonth), [viewMonth]);
+  const monthLabel = viewMonth.toLocaleDateString("de-CH", { month: "long", year: "numeric" });
+  const monthOptions = [
+    "Januar",
+    "Februar",
+    "März",
+    "April",
+    "Mai",
+    "Juni",
+    "Juli",
+    "August",
+    "September",
+    "Oktober",
+    "November",
+    "Dezember",
+  ] as const;
+  const yearOptions = useMemo(() => {
+    const base = viewMonth.getFullYear();
+    return Array.from({ length: 11 }, (_, index) => base - 5 + index);
+  }, [viewMonth]);
+  const selectedIso = selectedDate ? toIsoDate(selectedDate) : "";
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="mt-0.5 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-left text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+      >
+        {value || "Datum wählen"}
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-[330px] rounded-lg border border-zinc-200 bg-white p-2 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="mb-2 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setViewMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+              className="rounded px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              aria-label="Vorheriger Monat"
+            >
+              ‹
+            </button>
+            <div className="flex items-center gap-2">
+              <select
+                value={viewMonth.getMonth()}
+                onChange={(e) =>
+                  setViewMonth((prev) => new Date(prev.getFullYear(), Number(e.target.value), 1))
+                }
+                className="rounded border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                aria-label="Monat auswählen"
+                title={monthLabel}
+              >
+                {monthOptions.map((label, index) => (
+                  <option key={label} value={index}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={viewMonth.getFullYear()}
+                onChange={(e) =>
+                  setViewMonth((prev) => new Date(Number(e.target.value), prev.getMonth(), 1))
+                }
+                className="rounded border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                aria-label="Jahr auswählen"
+              >
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={() => setViewMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+              className="rounded px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              aria-label="Nächster Monat"
+            >
+              ›
+            </button>
+          </div>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="text-zinc-500 dark:text-zinc-400">
+                <th className="px-1 py-1 text-left font-medium">KW</th>
+                <th className="px-1 py-1 text-center font-medium">M</th>
+                <th className="px-1 py-1 text-center font-medium">D</th>
+                <th className="px-1 py-1 text-center font-medium">M</th>
+                <th className="px-1 py-1 text-center font-medium">D</th>
+                <th className="px-1 py-1 text-center font-medium">F</th>
+                <th className="px-1 py-1 text-center font-medium">S</th>
+                <th className="px-1 py-1 text-center font-medium">S</th>
+              </tr>
+            </thead>
+            <tbody>
+              {weeks.map((week) => {
+                const monday = week[0];
+                const weekInfo = getIsoWeekInfo(monday);
+                const weekStart = toIsoDate(monday);
+                const weekEndDate = new Date(monday);
+                weekEndDate.setDate(monday.getDate() + 6);
+                const weekEnd = toIsoDate(weekEndDate);
+                return (
+                  <tr key={weekStart}>
+                    <td className="px-1 py-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onSelectWeek) onSelectWeek(weekStart, weekEnd);
+                          else onChange(weekStart);
+                          setOpen(false);
+                        }}
+                        className="rounded px-1 py-0.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                        title={`KW ${String(weekInfo.week).padStart(2, "0")} wählen`}
+                      >
+                        {String(weekInfo.week).padStart(2, "0")}
+                      </button>
+                    </td>
+                    {week.map((day) => {
+                      const iso = toIsoDate(day);
+                      const inMonth = day.getMonth() === viewMonth.getMonth();
+                      const isSelected = selectedIso === iso;
+                      return (
+                        <td key={iso} className="px-0.5 py-0.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onChange(iso);
+                              setOpen(false);
+                            }}
+                            className={`h-7 w-7 rounded-full text-xs ${
+                              isSelected
+                                ? "bg-[#FF6554] text-white"
+                                : inMonth
+                                  ? "text-zinc-800 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                  : "text-zinc-400 hover:bg-zinc-100 dark:text-zinc-600 dark:hover:bg-zinc-800"
+                            }`}
+                          >
+                            {day.getDate()}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="mt-2 flex items-center justify-end gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-700">
+            <button
+              type="button"
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+              className="rounded border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const today = toIsoDate(new Date());
+                onChange(today);
+                setOpen(false);
+              }}
+              className="rounded bg-zinc-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              Today
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function parseDecimalInput(v: string): number | null {
   if (v === "") return null;
   const n = Number(v.replace(/\s/g, "").replace(/'/g, "").replace(",", "."));
@@ -107,6 +362,7 @@ function normalizePositionCategory(value: string | null | undefined): string | n
 }
 
 type KundendetailsPayload = {
+  title?: string;
   kampagnenname?: string | null;
   ziel?: string | null;
   creative_verantwortung?: string | null;
@@ -142,6 +398,7 @@ function PositionListItem({
   onUpdateDates,
   onUpdateDetails,
   onUpdateProzessStatus,
+  onRenameTitle,
 }: {
   pos: PositionRow;
   plan: MediaplanRow | null;
@@ -156,18 +413,20 @@ function PositionListItem({
   onUpdateDates: (d: { start_date?: string | null; end_date?: string | null; creative_deadline?: string | null }) => void;
   onUpdateDetails: (payload: KundendetailsPayload) => void | Promise<void>;
   onUpdateProzessStatus: (payload: Record<string, string>) => void | Promise<void>;
+  onRenameTitle: (title: string) => void | Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [editDetails, setEditDetails] = useState(false);
-  const [prozessCollapsed, setProzessCollapsed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(pos.title);
   const [localProzessStatus, setLocalProzessStatus] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     kampagnenname: pos.kampagnenname ?? plan?.campaign ?? "",
-    ziel: pos.ziel ?? pos.tag ?? "",
+    ziel: parseZielEignung(pos.ziel ?? pos.tag) || "",
     creative_verantwortung: pos.creative_verantwortung ?? "",
     agentur: pos.agentur ?? "",
     start_date: formatDateInput(pos.start_date),
@@ -189,7 +448,7 @@ function PositionListItem({
   useEffect(() => {
     setForm({
       kampagnenname: pos.kampagnenname ?? plan?.campaign ?? "",
-      ziel: pos.ziel ?? pos.tag ?? "",
+      ziel: parseZielEignung(pos.ziel ?? pos.tag) || "",
       creative_verantwortung: pos.creative_verantwortung ?? "",
       agentur: pos.agentur ?? "",
       start_date: formatDateInput(pos.start_date),
@@ -284,7 +543,7 @@ function PositionListItem({
         : null;
     await onUpdateDetails({
       kampagnenname: form.kampagnenname || null,
-      ziel: form.ziel || null,
+      ziel: parseZielEignung(form.ziel) || null,
       creative_verantwortung: form.creative_verantwortung || null,
       agentur: form.agentur || null,
       start_date: form.start_date || null,
@@ -307,7 +566,7 @@ function PositionListItem({
   };
 
   return (
-    <li className="content-radius overflow-hidden border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80">
+    <li className="group content-radius overflow-hidden border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80">
       {/* Aufklappbare Kopfzeile */}
       <div
         role="button"
@@ -338,15 +597,52 @@ function PositionListItem({
             className="mt-1 h-4 w-4 shrink-0 rounded border-0 border-none bg-zinc-100 shadow-none outline-none appearance-none focus:ring-2 focus:ring-[#FF6554] focus:ring-offset-0 checked:bg-[radial-gradient(circle_at_center,#FF6554_40%,#f4f4f5_40%)]"
           />
           <div className="min-w-0">
-            <p className="font-medium text-zinc-950 dark:text-zinc-100">{pos.title}</p>
-            {pos.description && (
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">{pos.description}</p>
-            )}
-            {pos.tag && (
-              <span className="mt-1 inline-block rounded bg-zinc-100 dark:bg-zinc-700 px-2 py-0.5 text-xs text-zinc-700 dark:text-zinc-200">
-                {pos.tag}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {editingTitle ? (
+                <>
+                  <input
+                    type="text"
+                    value={titleDraft}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1 text-sm font-medium text-zinc-900 dark:text-zinc-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const next = titleDraft.trim();
+                      if (!next) return;
+                      await onRenameTitle(next);
+                      setEditingTitle(false);
+                    }}
+                    className="rounded-full bg-[#FF6554] px-2 py-1 text-xs font-medium text-white"
+                  >
+                    OK
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium text-zinc-950 dark:text-zinc-100">{pos.title}</p>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTitleDraft(pos.title);
+                      setEditingTitle(true);
+                    }}
+                    className="opacity-0 transition-opacity group-hover:opacity-100 text-zinc-500 hover:text-[#FF6554]"
+                    title="Titel bearbeiten"
+                    aria-label="Titel bearbeiten"
+                  >
+                    ✎
+                  </button>
+                </>
+              )}
+            </div>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Laufzeit: {formatDateRange(pos.start_date, pos.end_date)}
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400 sm:flex-nowrap">
@@ -426,14 +722,7 @@ function PositionListItem({
                 document.body
               )}
           </div>
-          <span
-            className={`shrink-0 text-zinc-500 transition-transform ${expanded ? "rotate-180" : ""}`}
-            aria-hidden
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </span>
+          <CollapsibleChevron open={expanded} />
         </div>
       </div>
 
@@ -447,42 +736,7 @@ function PositionListItem({
           >
             <div className="mb-3 flex items-center justify-between gap-4">
               <div className="flex min-w-0 flex-1 items-center gap-3">
-                {/* Kreis linksbündig neben Headline; N/A zählt nicht mit */}
-                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden">
-                  <svg className="h-10 w-10 -rotate-90 shrink-0" viewBox="0 0 36 36" aria-hidden>
-                    <circle
-                      cx="18"
-                      cy="18"
-                      r="15.5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      className="text-zinc-200 dark:text-zinc-600"
-                    />
-                    <circle
-                      cx="18"
-                      cy="18"
-                      r="15.5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      strokeDasharray={`${2 * Math.PI * 15.5}`}
-                      strokeDashoffset={`${2 * Math.PI * 15.5 * (1 - prozessPercent / 100)}`}
-                      strokeLinecap="round"
-                      className={
-                        prozessPercent === 0
-                          ? "text-zinc-300 dark:text-zinc-500"
-                          : prozessPercent === 100
-                            ? "text-emerald-500 dark:text-emerald-400"
-                            : "text-amber-500 dark:text-amber-400"
-                      }
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center overflow-hidden text-[10px] font-medium leading-none tabular-nums text-zinc-600 dark:text-zinc-400">
-                    {prozessPercent}%
-                  </span>
-                </div>
-                <div className="flex flex-col gap-0.5 min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                     Prozessstatus
                   </h4>
@@ -494,101 +748,57 @@ function PositionListItem({
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setProzessCollapsed((c) => !c)}
-                className="shrink-0 rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
-              >
-                {prozessCollapsed ? "Aufklappen" : "Einklappen"}
-              </button>
             </div>
-            {!prozessCollapsed && (
-              <>
-                {/* Linearer Fortschrittsbalken */}
-                <div className="mb-4 mt-1">
-                  <div
-                    className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700"
-                    role="progressbar"
-                    aria-valuenow={prozessDoneCount}
-                    aria-valuemin={0}
-                    aria-valuemax={prozessActiveCount === 0 ? PROZESS_SCHRITTE.length : prozessActiveCount}
-                    aria-label={`Fortschritt ${prozessDoneCount} von ${prozessActiveCount === 0 ? PROZESS_SCHRITTE.length : prozessActiveCount} relevanten Schritten (N/A ausgenommen)`}
-                  >
+            <>
+                <div className="mt-1">
+                  <div className="relative">
                     <div
-                      className={`h-full rounded-full transition-all duration-300 ${
-                        prozessPercent === 0
-                          ? "bg-zinc-400 dark:bg-zinc-500"
-                          : prozessPercent === 100
-                            ? "bg-emerald-500 dark:bg-emerald-400"
-                            : "bg-amber-500 dark:bg-amber-400"
-                      }`}
-                      style={{ width: `${prozessPercent}%` }}
+                      className="pointer-events-none absolute top-5 h-px bg-zinc-300 dark:bg-zinc-600"
+                      style={{
+                        left: `calc(50% / ${PROZESS_SCHRITTE.length})`,
+                        right: `calc(50% / ${PROZESS_SCHRITTE.length})`,
+                      }}
                     />
+                    <div className="relative grid gap-2" style={{ gridTemplateColumns: `repeat(${PROZESS_SCHRITTE.length}, minmax(0, 1fr))` }}>
+                      {PROZESS_SCHRITTE.map(({ key, label }, idx) => {
+                        const status = getProzessStatus(key);
+                        const isDone = status === "Erledigt" || status === "Freigegeben";
+                        const isNa = status === "N/A";
+                        const pointClass = isDone
+                          ? "bg-emerald-500 ring-emerald-200 dark:ring-emerald-900/50"
+                          : isNa
+                            ? "bg-zinc-400 dark:bg-zinc-500 ring-zinc-200 dark:ring-zinc-700"
+                            : "bg-[#FF6554] ring-rose-200 dark:ring-rose-900/50";
+                        const statusClass = isDone
+                          ? "text-emerald-700 dark:text-emerald-300"
+                          : isNa
+                            ? "text-zinc-600 dark:text-zinc-300"
+                            : "text-[#FF6554]";
+                        return (
+                          <div key={key} className="flex flex-col items-center text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleProzessStepClick(key)}
+                              className={`relative z-10 mt-2 h-6 w-6 rounded-full ring-4 transition-transform hover:scale-105 ${pointClass}`}
+                              title={`${idx + 1}. ${label} (${status})`}
+                              aria-label={`${idx + 1}. ${label}: ${status}`}
+                            />
+                            <p className="mt-2 text-[11px] font-medium leading-tight text-zinc-700 dark:text-zinc-200">
+                              {label}
+                            </p>
+                            <p className={`mt-0.5 text-[10px] font-semibold ${statusClass}`}>
+                              {status}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-                <ul className="space-y-1.5 text-sm">
-                  {PROZESS_SCHRITTE.map(({ key, label }) => {
-                    const status = getProzessStatus(key);
-                    const isDone = status === "Erledigt" || status === "Freigegeben";
-                    const isNa = status === "N/A";
-                    const rowBg =
-                      isDone
-                        ? "bg-emerald-100 dark:bg-emerald-900/30"
-                        : isNa
-                          ? "bg-zinc-100 dark:bg-zinc-700"
-                          : "bg-[var(--accent-muted)] dark:bg-rose-900/25";
-                    return (
-                      <li
-                        key={key}
-                        onClick={() => handleProzessStepClick(key)}
-                        className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors hover:opacity-90 ${rowBg}`}
-                      >
-                        <span className="text-zinc-800 dark:text-zinc-200">
-                          {key}. {label}
-                        </span>
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                            isDone
-                              ? "border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/30"
-                              : isNa
-                                ? "border-zinc-300 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-700"
-                                : "border-rose-300 bg-[var(--accent-muted)] dark:border-rose-700 dark:bg-rose-900/25"
-                          }`}
-                          title={status}
-                        >
-                          <span
-                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                              isDone
-                                ? "bg-emerald-600 dark:bg-emerald-400"
-                                : isNa
-                                  ? "bg-zinc-500 dark:bg-zinc-400"
-                                  : "bg-rose-600 dark:bg-rose-400"
-                            }`}
-                          />
-                          <span
-                            className={
-                              isDone
-                                ? "text-emerald-700 dark:text-emerald-300"
-                                : isNa
-                                  ? "text-zinc-600 dark:text-zinc-300"
-                                  : "text-rose-700 dark:text-rose-300"
-                            }
-                          >
-                            {status}
-                          </span>
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-                  Klicke auf einen Schritt: Offen → Erledigt → N/A
-                </p>
-              </>
-            )}
+            </>
           </div>
 
-          <PositionCatalogInfo product={product} />
+          <PositionCatalogInfo product={product} position={pos} />
 
           {/* Kundenspezifische Produkt-Details: Anzeige oder Formular */}
           <div
@@ -617,7 +827,7 @@ function PositionListItem({
                   <h5 className="mb-2 font-medium text-zinc-700 dark:text-zinc-200">Kampagne</h5>
                   <dl className="space-y-1 text-zinc-600 dark:text-zinc-400">
                     <div><dt className="inline">Kampagnenname: </dt><dd className="inline">{pos.kampagnenname ?? plan?.campaign ?? "—"}</dd></div>
-                    <div><dt className="inline">Ziel: </dt><dd className="inline">{pos.ziel ?? pos.tag ?? "—"}</dd></div>
+                    <div><dt className="inline">Ziel: </dt><dd className="inline">{parseZielEignung(pos.ziel ?? pos.tag) || "—"}</dd></div>
                     <div><dt className="inline">Creative-Verantwortung: </dt><dd className="inline">{pos.creative_verantwortung ?? "—"}</dd></div>
                     <div><dt className="inline">Agentur: </dt><dd className="inline">{pos.agentur ?? "—"}</dd></div>
                     <div><dt className="inline">Creative Deadline: </dt><dd className="inline">{pos.creative_deadline ? formatDateRange(pos.creative_deadline, null) : "—"}</dd></div>
@@ -660,7 +870,18 @@ function PositionListItem({
                     </label>
                     <label className="block">
                       <span className="block text-xs text-zinc-500 dark:text-zinc-400">Ziel</span>
-                      <input type="text" value={form.ziel} onChange={(e) => update("ziel", e.target.value)} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" placeholder="z.B. Sichtbarkeit" />
+                      <select
+                        value={parseZielEignung(form.ziel) || ""}
+                        onChange={(e) => update("ziel", e.target.value)}
+                        className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
+                      >
+                        <option value="">—</option>
+                        {ZIEL_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
                     </label>
                     <label className="block">
                       <span className="block text-xs text-zinc-500 dark:text-zinc-400">Creative-Verantwortung</span>
@@ -679,11 +900,31 @@ function PositionListItem({
                     <h5 className="font-medium text-zinc-700 dark:text-zinc-200">Laufzeit</h5>
                     <label className="block">
                       <span className="block text-xs text-zinc-500 dark:text-zinc-400">Startdatum</span>
-                      <input type="date" value={form.start_date} onChange={(e) => update("start_date", e.target.value)} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" />
+                      <WeekAwareDateInput
+                        value={form.start_date}
+                        onChange={(next) => update("start_date", next)}
+                        onSelectWeek={(start, end) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            start_date: start,
+                            end_date: end,
+                          }))
+                        }
+                      />
                     </label>
                     <label className="block">
                       <span className="block text-xs text-zinc-500 dark:text-zinc-400">Enddatum</span>
-                      <input type="date" value={form.end_date} onChange={(e) => update("end_date", e.target.value)} className="mt-0.5 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1.5 text-zinc-900 dark:text-zinc-100" />
+                      <WeekAwareDateInput
+                        value={form.end_date}
+                        onChange={(next) => update("end_date", next)}
+                        onSelectWeek={(start, end) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            start_date: start,
+                            end_date: end,
+                          }))
+                        }
+                      />
                     </label>
                     <label className="block">
                       <span className="block text-xs text-zinc-500 dark:text-zinc-400">Menge/Volumen</span>
@@ -798,10 +1039,16 @@ export default function MediaplanDetailPage() {
   const [addProductOpen, setAddProductOpen] = useState(false);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [productSearch, setProductSearch] = useState("");
+  const [targetCategoryForAdd, setTargetCategoryForAdd] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
   const [bulkCategoryValue, setBulkCategoryValue] = useState("");
   const [newCategoryDraft, setNewCategoryDraft] = useState("");
+  const [showCreateCampaignInput, setShowCreateCampaignInput] = useState(false);
+  const [newCampaignTitle, setNewCampaignTitle] = useState("");
+  const [collapsedCampaignGroups, setCollapsedCampaignGroups] = useState<Record<string, boolean>>({});
+  const [editingCampaignGroup, setEditingCampaignGroup] = useState<string | null>(null);
+  const [campaignGroupDraft, setCampaignGroupDraft] = useState("");
   const [customCategoryOptions, setCustomCategoryOptions] = useState<string[]>([]);
   const [editPlanInfo, setEditPlanInfo] = useState(false);
   const [editKundenberater, setEditKundenberater] = useState(false);
@@ -849,17 +1096,20 @@ export default function MediaplanDetailPage() {
   const positionsByCategory = useMemo(() => {
     const groups = new Map<string, PositionRow[]>();
     for (const pos of positions) {
-      const key = normalizePositionCategory(pos.position_kategorie) ?? "Ohne Kategorie";
+      const key = normalizePositionCategory(pos.position_kategorie) ?? "Ohne Kampagne";
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(pos);
     }
+    for (const custom of customCategoryOptions) {
+      if (!groups.has(custom)) groups.set(custom, []);
+    }
     const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
-      if (a === "Ohne Kategorie") return 1;
-      if (b === "Ohne Kategorie") return -1;
+      if (a === "Ohne Kampagne") return 1;
+      if (b === "Ohne Kampagne") return -1;
       return a.localeCompare(b, "de-CH", { sensitivity: "base" });
     });
     return sortedKeys.map((name) => ({ name, positions: groups.get(name) ?? [] }));
-  }, [positions]);
+  }, [positions, customCategoryOptions]);
 
   const sortedPositionsForTimeline = useMemo(
     () => positionsByCategory.flatMap((group) => group.positions),
@@ -970,7 +1220,8 @@ export default function MediaplanDetailPage() {
       });
   }, [isAgency]);
 
-  const openAddProduct = useCallback(async () => {
+  const openAddProduct = useCallback(async (prefillCategory: string | null = null) => {
+    setTargetCategoryForAdd(prefillCategory);
     setAddProductOpen(true);
     setProductSearch("");
     const supabase = createClient();
@@ -984,19 +1235,23 @@ export default function MediaplanDetailPage() {
   }, []);
 
   const filteredProducts = useMemo(() => {
-    if (!productSearch.trim()) return products;
+    let base = products;
+    if (targetCategoryForAdd && targetCategoryForAdd !== "Ohne Kampagne") {
+      base = base.filter((p) => p.category === targetCategoryForAdd);
+    }
+    if (!productSearch.trim()) return base;
     const q = productSearch.toLowerCase();
-    return products.filter(
+    return base.filter(
       (p) =>
         (p.produktvariante_titel ?? "").toLowerCase().includes(q) ||
         (p.name ?? "").toLowerCase().includes(q) ||
         (p.category ?? "").toLowerCase().includes(q) ||
         (p.platzierung ?? "").toLowerCase().includes(q)
     );
-  }, [products, productSearch]);
+  }, [products, productSearch, targetCategoryForAdd]);
 
   const addProductAsPosition = useCallback(
-    async (prod: ProductRow) => {
+    async (prod: ProductRow, targetCategory: string | null = null) => {
       if (!planId) return;
       setAdding(true);
       const supabase = createClient();
@@ -1013,7 +1268,10 @@ export default function MediaplanDetailPage() {
         discount_text: null,
         kundenpreis: withAtAdLevy(prod.preis_netto_chf ?? null, hasAtAdLevy),
         rabatt_agentur_prozent: prod.agentur_marge_prozent ?? null,
-        position_kategorie: null,
+        position_kategorie:
+          targetCategory && targetCategory !== "Ohne Kampagne"
+            ? targetCategory
+            : null,
         status_tags: ["Offen"],
         sort_order: positions.length,
         start_date: null,
@@ -1027,8 +1285,9 @@ export default function MediaplanDetailPage() {
       }
       await loadPositions();
       setAddProductOpen(false);
+      setTargetCategoryForAdd(null);
     },
-    [planId, positions.length, loadPositions]
+    [planId, positions.length, loadPositions, targetCategoryForAdd]
   );
 
   const updatePositionDates = useCallback(
@@ -1110,6 +1369,32 @@ export default function MediaplanDetailPage() {
     setBulkCategoryValue("");
     await loadPositions();
   }, [selectedPositionIds, bulkCategoryValue, loadPositions]);
+
+  const renameCampaignGroup = useCallback(
+    async (oldName: string, nextName: string) => {
+      const normalizedNext = normalizePositionCategory(nextName);
+      if (!normalizedNext || normalizedNext === oldName || !planId) return;
+      const supabase = createClient();
+      const { error: err } = await supabase
+        .from("mediaplan_positionen")
+        .update({ position_kategorie: normalizedNext })
+        .eq("mediaplan_id", planId)
+        .eq("position_kategorie", oldName);
+      if (err) {
+        setError(err.message);
+        return;
+      }
+      setCustomCategoryOptions((prev) =>
+        Array.from(
+          new Set(
+            prev.map((entry) => (entry === oldName ? normalizedNext : entry))
+          )
+        )
+      );
+      await loadPositions();
+    },
+    [planId, loadPositions]
+  );
 
   const duplicatePosition = useCallback(
     async (positionId: string) => {
@@ -1297,7 +1582,13 @@ export default function MediaplanDetailPage() {
       <div className="pl-4 sm:pl-5">
         <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-100">Zeitplan – Übersicht</h2>
         <section className="-ml-4 sm:-ml-5 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
-          <GanttChart plan={plan} positions={sortedPositionsForTimeline} interactive />
+          <GanttChart
+            plan={plan}
+            positions={sortedPositionsForTimeline}
+            interactive
+            onRenamePosition={(positionId, title) => updatePositionDetails(positionId, { title })}
+            onRenameCampaign={renameCampaignGroup}
+          />
         </section>
       </div>
 
@@ -1336,8 +1627,8 @@ export default function MediaplanDetailPage() {
                   }}
                   className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-200"
                 >
-                  <option value="">Kategorie wählen…</option>
-                  <option value="__new__">+ Neue Kategorie…</option>
+                  <option value="">Kampagne wählen…</option>
+                  <option value="__new__">+ Neue Kampagne…</option>
                   {categoryOptions.map((option) => (
                     <option key={option} value={option}>
                       {option}
@@ -1350,7 +1641,7 @@ export default function MediaplanDetailPage() {
                       type="text"
                       value={newCategoryDraft}
                       onChange={(e) => setNewCategoryDraft(e.target.value)}
-                      placeholder="Name der neuen Kategorie"
+                      placeholder="Name der neuen Kampagne"
                       className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
                     />
                     <button
@@ -1378,8 +1669,8 @@ export default function MediaplanDetailPage() {
                   className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                 >
                   {normalizePositionCategory(bulkCategoryValue) == null
-                    ? `Kategorie löschen (${selectedPositionIds.length})`
-                    : `Kategorie zuweisen (${selectedPositionIds.length})`}
+                    ? `Kampagne entfernen (${selectedPositionIds.length})`
+                    : `Kampagne zuweisen (${selectedPositionIds.length})`}
                 </button>
                 <button
                   type="button"
@@ -1404,46 +1695,156 @@ export default function MediaplanDetailPage() {
             )}
           </div>
         </div>
-        <div className="mt-4 space-y-5">
+        <div className="mt-2 space-y-2">
           {positionsByCategory.map((group) => (
             <div key={group.name}>
-              <h3 className="mb-2 text-sm font-semibold text-zinc-700 dark:text-zinc-200">
-                {group.name} ({group.positions.length})
-              </h3>
-              <ul className="space-y-4">
-                {group.positions.map((pos) => (
-                  <PositionListItem
-                    key={pos.id}
-                    pos={pos}
-                    plan={plan}
-                    product={pos.produkt_id ? catalogProductMap[pos.produkt_id] ?? null : null}
-                    selected={selectedPositionIds.includes(pos.id)}
-                    onToggleSelect={() =>
-                      setSelectedPositionIds((prev) =>
-                        prev.includes(pos.id) ? prev.filter((id) => id !== pos.id) : [...prev, pos.id]
-                      )
-                    }
-                    formatChf={formatChf}
-                    formatDateRange={formatDateRange}
-                    formatDateInput={formatDateInput}
-                    onDelete={() => openDeleteConfirm([pos.id])}
-                    onDuplicate={() => duplicatePosition(pos.id)}
-                    onUpdateDates={(dates) => updatePositionDates(pos.id, dates)}
-                    onUpdateDetails={(payload) => updatePositionDetails(pos.id, payload)}
-                    onUpdateProzessStatus={(payload) => updatePositionProzessStatus(pos.id, payload)}
+              {editingCampaignGroup === group.name ? (
+                <div className="mb-1.5 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={campaignGroupDraft}
+                    onChange={(e) => setCampaignGroupDraft(e.target.value)}
+                    className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-2 py-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100"
                   />
-                ))}
-              </ul>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await renameCampaignGroup(group.name, campaignGroupDraft);
+                      setEditingCampaignGroup(null);
+                    }}
+                    className="rounded bg-[#FF6554] px-2 py-1 text-xs font-semibold text-white"
+                  >
+                    OK
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className="group mb-1.5 inline-flex w-full items-center justify-between gap-2 text-left text-sm font-semibold text-zinc-700 dark:text-zinc-200 cursor-pointer"
+                  onClick={() =>
+                    setCollapsedCampaignGroups((prev) => ({
+                      ...prev,
+                      [group.name]: !prev[group.name],
+                    }))
+                  }
+                >
+                  <div className="inline-flex min-w-0 items-center gap-2">
+                    <span className="truncate">{group.name} ({group.positions.length})</span>
+                    <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                      · Summe {formatChf(group.positions.reduce((sum, p) => sum + (p.kundenpreis ?? 0), 0))}
+                    </span>
+                    {group.name !== "Ohne Kampagne" && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingCampaignGroup(group.name);
+                          setCampaignGroupDraft(group.name);
+                        }}
+                        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 text-zinc-500 hover:text-[#FF6554]"
+                        title="Kampagne umbenennen"
+                        aria-label="Kampagne umbenennen"
+                      >
+                        ✎
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex shrink-0 items-center justify-center"
+                  >
+                    <CollapsibleChevron open={!collapsedCampaignGroups[group.name]} />
+                  </button>
+                </div>
+              )}
+              {!collapsedCampaignGroups[group.name] && (
+                <>
+                  <ul className="space-y-1.5">
+                    {group.positions.map((pos) => (
+                      <PositionListItem
+                        key={pos.id}
+                        pos={pos}
+                        plan={plan}
+                        product={pos.produkt_id ? catalogProductMap[pos.produkt_id] ?? null : null}
+                        selected={selectedPositionIds.includes(pos.id)}
+                        onToggleSelect={() =>
+                          setSelectedPositionIds((prev) =>
+                            prev.includes(pos.id) ? prev.filter((id) => id !== pos.id) : [...prev, pos.id]
+                          )
+                        }
+                        formatChf={formatChf}
+                        formatDateRange={formatDateRange}
+                        formatDateInput={formatDateInput}
+                        onDelete={() => openDeleteConfirm([pos.id])}
+                        onDuplicate={() => duplicatePosition(pos.id)}
+                        onUpdateDates={(dates) => updatePositionDates(pos.id, dates)}
+                        onUpdateDetails={(payload) => updatePositionDetails(pos.id, payload)}
+                        onUpdateProzessStatus={(payload) => updatePositionProzessStatus(pos.id, payload)}
+                        onRenameTitle={(title) => updatePositionDetails(pos.id, { title })}
+                      />
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => openAddProduct(group.name)}
+                    className="mt-1 flex w-full items-center justify-center rounded-xl border-2 border-transparent py-0.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:border-dashed hover:border-zinc-200 dark:hover:border-zinc-600 hover:bg-[#FF6554]/15 hover:text-[#FF6554]"
+                  >
+                    + Position in Kampagne „{group.name}“ hinzufügen
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>
         <button
           type="button"
-          onClick={openAddProduct}
+          onClick={() => {
+            setShowCreateCampaignInput(true);
+          }}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-200 dark:border-zinc-600 py-4 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:border-[#FF6554]/40 hover:bg-[#FF6554]/15 hover:text-[#FF6554]"
         >
-          + Position aus Produktkatalog hinzufügen
+          + Kampagne erstellen
         </button>
+        {showCreateCampaignInput && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={newCampaignTitle}
+              onChange={(e) => setNewCampaignTitle(e.target.value)}
+              placeholder="Titel der Kampagne"
+              className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const normalized = normalizePositionCategory(newCampaignTitle);
+                if (!normalized) return;
+                setCustomCategoryOptions((prev) =>
+                  prev.some((v) => v.localeCompare(normalized, "de-CH", { sensitivity: "base" }) === 0)
+                    ? prev
+                    : [...prev, normalized]
+                );
+                setShowCreateCampaignInput(false);
+                setNewCampaignTitle("");
+                openAddProduct(normalized);
+              }}
+              className="rounded-full bg-[#FF6554] px-3 py-2 text-sm font-medium text-white hover:bg-[#e55a4a]"
+            >
+              Erstellen
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowCreateCampaignInput(false);
+                setNewCampaignTitle("");
+              }}
+              className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200"
+            >
+              Abbrechen
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-[var(--haupt-box-bg)] dark:bg-zinc-800/80 p-4 sm:p-5">
@@ -1522,6 +1923,11 @@ export default function MediaplanDetailPage() {
             <h3 className="text-lg font-semibold text-zinc-950">
               Position aus Produktkatalog hinzufügen
             </h3>
+            {targetCategoryForAdd && (
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                Zielkampagne: {targetCategoryForAdd}
+              </p>
+            )}
             <input
               type="search"
               placeholder="Produkt suchen (Name, Kategorie, Platzierung…)"
@@ -1541,7 +1947,7 @@ export default function MediaplanDetailPage() {
                   <li
                     key={prod.id}
                     className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-zinc-200 p-3 hover:bg-[#FF6554]/10"
-                    onClick={() => addProductAsPosition(prod)}
+                    onClick={() => addProductAsPosition(prod, targetCategoryForAdd)}
                   >
                     <div className="min-w-0">
                       <p className="font-medium text-zinc-900">{title}</p>

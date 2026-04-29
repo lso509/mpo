@@ -56,6 +56,42 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
     </svg>
   ),
+  settings: (
+    <span
+      className={`${iconClass} relative inline-block`}
+      aria-hidden
+    >
+      <span
+        className="absolute inset-0"
+        style={{
+          backgroundColor: "currentColor",
+          WebkitMaskImage: "url('/settings-icon.svg')",
+          WebkitMaskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          WebkitMaskSize: "contain",
+          maskImage: "url('/settings-icon.svg')",
+          maskRepeat: "no-repeat",
+          maskPosition: "center",
+          maskSize: "contain",
+        }}
+      />
+      <span
+        className="absolute inset-0"
+        style={{
+          transform: "translateX(0.35px)",
+          backgroundColor: "currentColor",
+          WebkitMaskImage: "url('/settings-icon.svg')",
+          WebkitMaskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          WebkitMaskSize: "contain",
+          maskImage: "url('/settings-icon.svg')",
+          maskRepeat: "no-repeat",
+          maskPosition: "center",
+          maskSize: "contain",
+        }}
+      />
+    </span>
+  ),
   box: (
     <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -103,11 +139,9 @@ const backIcon = (
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: icons.dashboard },
+  { href: "/kunden", label: "Kontakte", icon: icons.users },
   { href: "/mediaplaene", label: "Mediapläne", icon: icons.gantt },
   { href: "/produkte", label: "Produkte", icon: icons.box },
-  { href: "/kommunikation", label: "Kommunikation", icon: icons.message },
-  { href: "/kunden", label: "Kontakte", icon: icons.users },
-  { href: "/finanzen", label: "Finanzen", icon: icons.currency },
   { href: "/tools", label: "Tools", icon: icons.tools },
 ] as const;
 
@@ -183,28 +217,50 @@ export function Sidebar() {
             </Link>
           );
         })}
-        {isAgency && (
+        <div className="mt-auto flex w-full flex-col gap-3">
+          {isAgency && (
+            <Link
+              href="/admin/feedback"
+              className="group flex w-full items-center justify-start"
+              title="Feedback verwalten"
+            >
+              <span
+                className={`flex h-14 w-14 shrink-0 items-center gap-0 rounded-[500px] transition-all duration-200 group-hover:w-auto group-hover:max-w-[200px] group-hover:pr-5 ${
+                  pathname === "/admin/feedback" || pathname.startsWith("/admin/feedback/")
+                    ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+                    : "bg-white text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+                }`}
+              >
+                <span className="grid h-14 w-14 shrink-0 place-items-center [&_svg]:col-start-1 [&_svg]:row-start-1 [&_svg]:block [&_svg]:h-7 [&_svg]:w-7 [&_svg]:shrink-0">
+                  {icons.feedback}
+                </span>
+                <span className="max-w-0 overflow-hidden opacity-0 transition-all duration-200 group-hover:max-w-[140px] group-hover:opacity-100 text-sm font-medium truncate">
+                  Feedback
+                </span>
+              </span>
+            </Link>
+          )}
           <Link
-            href="/admin/feedback"
+            href="/einstellungen"
             className="group flex w-full items-center justify-start"
-            title="Feedback verwalten"
+            title="Einstellungen"
           >
             <span
               className={`flex h-14 w-14 shrink-0 items-center gap-0 rounded-[500px] transition-all duration-200 group-hover:w-auto group-hover:max-w-[200px] group-hover:pr-5 ${
-                pathname === "/admin/feedback" || pathname.startsWith("/admin/feedback/")
+                pathname === "/einstellungen" || pathname.startsWith("/einstellungen/")
                   ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
                   : "bg-white text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
               }`}
             >
-              <span className="grid h-14 w-14 shrink-0 place-items-center [&_svg]:col-start-1 [&_svg]:row-start-1 [&_svg]:block [&_svg]:h-7 [&_svg]:w-7 [&_svg]:shrink-0">
-                {icons.feedback}
+              <span className="grid h-14 w-14 shrink-0 place-items-center">
+                {icons.settings}
               </span>
               <span className="max-w-0 overflow-hidden opacity-0 transition-all duration-200 group-hover:max-w-[140px] group-hover:opacity-100 text-sm font-medium truncate">
-                Feedback
+                Einstellungen
               </span>
             </span>
           </Link>
-        )}
+        </div>
         </nav>
       </div>
       <SidebarClock />
