@@ -74,8 +74,8 @@ type ProductRow = {
   ziel_eignung: string | null;
   preis_brutto_chf: number | null;
   preis_netto_chf: number | null;
-  agentur_marge_prozent: number | null;
-  werbeabgabe_at: boolean | null;
+  agentur_marge_prozent?: number | null;
+  werbeabgabe_at?: boolean | null;
   category: string | null;
 };
 
@@ -1225,19 +1225,42 @@ export default function MediaplanDetailPage() {
     setAddProductOpen(true);
     setProductSearch("");
     const supabase = createClient();
-    const { data } = await supabase
+    const fullSelect =
+      "id, produktvariante_titel, name, platzierung, zusatzinformationen, ziel_eignung, preis_brutto_chf, preis_netto_chf, agentur_marge_prozent, werbeabgabe_at, category";
+    const fallbackSelect =
+      "id, produktvariante_titel, name, platzierung, zusatzinformationen, ziel_eignung, preis_brutto_chf, preis_netto_chf, category";
+    const primary = await supabase
       .from("produkte")
-      .select("id, produktvariante_titel, name, platzierung, zusatzinformationen, ziel_eignung, preis_brutto_chf, preis_netto_chf, agentur_marge_prozent, werbeabgabe_at, category")
+      .select(fullSelect)
       .eq("archived", false)
       .order("category")
       .limit(200);
-    setProducts((data ?? []) as ProductRow[]);
+    let resolvedData: unknown[] | null = primary.data as unknown[] | null;
+    let resolvedError = primary.error;
+    if (resolvedError) {
+      const fallback = await supabase
+        .from("produkte")
+        .select(fallbackSelect)
+        .eq("archived", false)
+        .order("category")
+        .limit(200);
+      resolvedData = fallback.data as unknown[] | null;
+      resolvedError = fallback.error;
+    }
+    if (resolvedError) {
+      setError(`Produkte konnten nicht geladen werden: ${resolvedError.message}`);
+      setProducts([]);
+      return;
+    }
+    setProducts((resolvedData ?? []) as ProductRow[]);
   }, []);
 
   const filteredProducts = useMemo(() => {
     let base = products;
     if (targetCategoryForAdd && targetCategoryForAdd !== "Ohne Kampagne") {
-      base = base.filter((p) => p.category === targetCategoryForAdd);
+      const byCategory = base.filter((p) => (p.category ?? "").trim().toLowerCase() === targetCategoryForAdd.trim().toLowerCase());
+      // Falls Kampagnenname nicht einer Produktkategorie entspricht, nicht leer filtern.
+      if (byCategory.length > 0) base = byCategory;
     }
     if (!productSearch.trim()) return base;
     const q = productSearch.toLowerCase();

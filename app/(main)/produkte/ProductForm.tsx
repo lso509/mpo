@@ -96,6 +96,7 @@ export function ProductForm({
     }
   });
   const [showProduktgruppeModal, setShowProduktgruppeModal] = useState(false);
+  const [showSaveOverwriteWarning, setShowSaveOverwriteWarning] = useState(false);
   const [newProduktgruppe, setNewProduktgruppe] = useState("");
   const PRODUCT_FORM_SECTIONS = ["basis", "placement", "preise", "automatisierung", "historie"] as const;
   type ProductFormSection = (typeof PRODUCT_FORM_SECTIONS)[number];
@@ -183,13 +184,19 @@ export function ProductForm({
     );
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isNew) {
+      setShowSaveOverwriteWarning(true);
+      return;
+    }
+    onSave(false, false);
+  };
+
   return (
     <form
       className="flex flex-1 flex-col"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave(false, false);
-      }}
+      onSubmit={handleSubmit}
     >
       <div className="p-6 pb-32">
         <div className="mb-0 flex flex-wrap items-baseline justify-end gap-x-4 gap-y-1 pr-5">
@@ -1107,6 +1114,47 @@ export function ProductForm({
           <FeedbackMarker target="produkte.speichern" />
         </div>
       </div>
+
+      {showSaveOverwriteWarning && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !saving && setShowSaveOverwriteWarning(false)}
+        >
+          <div
+            className="content-radius w-full max-w-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Speichern bestätigen</h4>
+            <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+              Das vorhandene Produkt wird auch in bestehenden Mediaplänen aktualisiert/überschrieben.
+            </p>
+            <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
+              Für ein neues Produkt bitte den Button <span className="font-medium">„Ersetzen &amp; Archivieren“</span> verwenden.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSaveOverwriteWarning(false)}
+                disabled={saving}
+                className="rounded-full border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSaveOverwriteWarning(false);
+                  onSave(false, false);
+                }}
+                disabled={saving}
+                className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                Trotzdem speichern
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showProduktgruppeModal && (
         <div
